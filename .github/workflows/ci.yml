@@ -17,4 +17,3 @@ jobs:
       # Coupons' service manifest and capabilities are proposals (docs/) until the lead releases them
       # in openvibe-contracts; until then the check reports the placeholder manifest's range.
       - run: npx openvibe-contracts-check --service coupons --src server
-        continue-on-error: true
