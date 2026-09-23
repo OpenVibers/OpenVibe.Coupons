@@ -15,7 +15,9 @@
  *   { kind: 'service', service, claims, subject, origin } Bearer Network client-credentials token for
  *                                                         audience openvibe.coupons; X-OV-Subject names
  *                                                         the person it acts for, X-OV-Origin: ai marks
- *                                                         model output (OpenVibe.AI coupons.extract_coupon)
+ *                                                         model output (OpenVibe.AI coupons.extract_coupon).
+ *                                                         Apps (app:…) and modules (mod:…) act only for
+ *                                                         their on_behalf_of person; sandbox tokens: 401
  *   { kind: 'user', subject, staff, user }                Bearer Network user JWT (apps)
  * A presented credential that does not verify is refused (401), never downgraded to anonymous.
  *
@@ -47,15 +49,28 @@ function createViewerResolver({ auth, config, installs }) {
         if (!publicKey) throw new ApiError(503, 'identity.unavailable', 'the Network signing key is not loaded yet');
         const r = serviceAuth.verifyServiceToken(token, { publicKey, issuer: config.networkUrl, audience: AUDIENCE });
         if (!r.ok) throw new ApiError(401, r.code, r.reason);
+        // Developer apps (app:…) and modules (mod:…) are third parties: they act only for the person
+        // who authorized them (on_behalf_of), never for whoever X-OV-Subject names. Only first-party
+        // service principals (svc:…) are trusted to name the acting person.
+        const claims = r.claims;
+        const firstParty = claims.actor_type === 'service' && String(claims.sub).startsWith('svc:');
+        if (!firstParty && claims.env !== undefined && claims.env !== 'production') {
+            throw new ApiError(401, 'token.sandbox_refused', 'sandbox tokens are not accepted by openvibe.coupons');
+        }
         const originHeader = req.get('x-ov-origin');
         if (originHeader && originHeader !== 'ai' && originHeader !== 'user') throw new ApiError(400, 'request.invalid_origin', 'X-OV-Origin must be "ai" or "user"');
         const subjectHeader = req.get('x-ov-subject');
         let subject = null;
         if (subjectHeader) {
             if (!ids.isSubjectId('user', subjectHeader)) throw new ApiError(400, 'subject.invalid', 'X-OV-Subject must be a usr_… subject id');
+            if (!firstParty && subjectHeader !== claims.on_behalf_of) {
+                throw new ApiError(403, 'subject.not_delegated', 'an app acts only for the person who authorized it (on_behalf_of)');
+            }
             subject = subjectHeader;
+        } else if (!firstParty && ids.isSubjectId('user', claims.on_behalf_of)) {
+            subject = claims.on_behalf_of;
         }
-        return { kind: 'service', service: r.claims.sub, claims: r.claims, subject, origin: originHeader === 'ai' ? 'ai' : 'user', staff: false };
+        return { kind: 'service', service: claims.sub, claims, subject, origin: originHeader === 'ai' ? 'ai' : 'user', staff: false };
     }
 
     /** API callers: the Authorization header only. */
