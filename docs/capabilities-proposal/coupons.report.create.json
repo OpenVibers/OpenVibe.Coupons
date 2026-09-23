@@ -1,0 +1,24 @@
+{
+  "id": "coupons.report.create",
+  "version": "1.0",
+  "owner": "coupons",
+  "status": "active",
+  "visibility": "first-party",
+  "description": "Report that a code worked or failed, on behalf of a person (X-OV-Subject). One report per person, code and UTC day; only the latest per person counts; rate-limited per person; AI output (X-OV-Origin: ai) is refused. The response carries aggregates only, never a reporter. The charter's coupons.report.",
+  "permissions": [
+    "coupons:report"
+  ],
+  "resourceConstraints": [
+    "none"
+  ],
+  "quotaClass": "coupons-report",
+  "events": [
+    "coupons.report.created",
+    "coupons.coupon.updated",
+    "coupons.confidence.changed",
+    "coupons.index_document.upserted"
+  ],
+  "implementedBy": [
+    "POST /api/v1/coupons/:id/report"
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "coupons.merchant.manage",
+  "version": "1.0",
+  "owner": "coupons",
+  "status": "active",
+  "visibility": "first-party",
+  "description": "Create merchants with their domain rules (never on a public suffix), add domain rules, and approve or disable merchants. Approving a pending merchant publishes the codes members submitted for it; disabling one takes its codes out of active results and Search.",
+  "permissions": [
+    "coupons:moderate"
+  ],
+  "resourceConstraints": [
+    "none"
+  ],
+  "quotaClass": "coupons-write",
+  "events": [
+    "coupons.coupon.updated",
+    "coupons.index_document.upserted",
+    "coupons.index_document.deleted"
+  ],
+  "implementedBy": [
+    "POST /api/v1/merchants",
+    "POST /api/v1/merchants/:id/domains",
+    "POST /api/v1/merchants/:id/status"
+  ]
+}

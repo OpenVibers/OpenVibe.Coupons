@@ -1,0 +1,26 @@
+{
+  "id": "coupons.status.update",
+  "version": "1.0",
+  "owner": "coupons",
+  "status": "active",
+  "visibility": "first-party",
+  "description": "Moderate a code: disable it, mark it expired, or return it to active results (its status is then recomputed from people's reports and time). reported_working and reported_failed cannot be set by anyone.",
+  "permissions": [
+    "coupons:moderate"
+  ],
+  "resourceConstraints": [
+    "none"
+  ],
+  "quotaClass": "coupons-write",
+  "events": [
+    "coupons.coupon.disabled",
+    "coupons.coupon.expired",
+    "coupons.coupon.updated",
+    "coupons.confidence.changed",
+    "coupons.index_document.upserted",
+    "coupons.index_document.deleted"
+  ],
+  "implementedBy": [
+    "POST /api/v1/coupons/:id/status"
+  ]
+}

@@ -1,0 +1,32 @@
+[Unit]
+Description=OpenVibe.Coupons — coupon codes with merchant matching, honest expiry and people's validity reports
+# Network (sign-in, JWKS, service tokens), Events (the outbox relay) and Sources (imports) should be
+# up first, but Coupons degrades gracefully without them: pages, lookups and feeds serve; sign-in,
+# events and imports wait (see /api/ready).
+After=network.target
+Wants=openvibe-network.service
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/openvibe.coupons
+EnvironmentFile=/etc/openvibe/coupons.env
+Environment=NODE_ENV=production
+Environment=PORT=4850
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/env node /opt/openvibe.coupons/server/index.js
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# Coupons' own database lives in /var/lib/openvibe-coupons; the code tree stays read-only.
+StateDirectory=openvibe-coupons
+Environment=COUPONS_DB_PATH=/var/lib/openvibe-coupons/coupons.db
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,21 @@
+{
+  "id": "coupons.coupon.lookup",
+  "version": "1.0",
+  "owner": "coupons",
+  "status": "active",
+  "visibility": "first-party",
+  "description": "Read a merchant's active codes (status, confidence, report aggregates, restrictions, expiry or unknown, evidence) or one code. Public data only, the same response for every caller; anonymous callers may use the routes with tighter rate limits. The charter's coupons.lookup.",
+  "permissions": [
+    "coupons:read"
+  ],
+  "resourceConstraints": [
+    "none"
+  ],
+  "quotaClass": "coupons-lookup",
+  "events": [],
+  "implementedBy": [
+    "GET /api/v1/merchants/:id/coupons",
+    "GET /api/v1/merchants/:id",
+    "GET /api/v1/coupons/:id"
+  ]
+}
