@@ -58,6 +58,22 @@ const DAY = 24 * HOUR;
         assert.strictEqual(t.events('coupons.report.created').length, 1, 'one report, one event');
     });
 
+    await check('the submitter (or anyone who added evidence) cannot report on the code: one account cannot make its own code "working"', async () => {
+        const fake = await mk('MADEUP50');
+        const api = await report(alice, fake.id, { outcome: 'worked' });
+        assert.strictEqual(api.status, 403);
+        assert.strictEqual(api.json().code, 'report.own_submission');
+        const form = await t.get(`/c/${fake.id}/report`, { as: alice, form: { csrf: t.csrf(alice), outcome: 'worked', back: `/c/${fake.id}` } });
+        assert.strictEqual(form.status, 403);
+        const token = await t.connect(alice, { label: 'alice laptop' });
+        assert.strictEqual((await report(token, fake.id, { outcome: 'worked' })).status, 403);
+        const hank = t.network.addUser('hank');
+        assert.strictEqual((await t.submit(hank, { host: 'bluekettle.shop', code: 'MADEUP50', title: 'Code MADEUP50', evidence_url: 'https://bluekettle.shop/deals' })).status, 200, 'duplicate: evidence added');
+        assert.strictEqual((await report(hank, fake.id, { outcome: 'worked' })).status, 403, 'evidence submitters are submitters too');
+        assert.strictEqual(t.ctx.coupons.get(fake.id).status, 'unknown');
+        assert.strictEqual(t.ctx.store.db.prepare('SELECT COUNT(*) AS n FROM coupon_validation_reports WHERE coupon_id = ?').get(fake.id).n, 0);
+    });
+
     await check('the next day is a new report, but only the latest per person counts', async () => {
         t.clock.advance(DAY);
         const r = await report(bob, code.id, { outcome: 'worked' });
@@ -73,7 +89,7 @@ const DAY = 24 * HOUR;
     });
 
     await check('the response and the events never name a reporter; report times are published to the hour', async () => {
-        const r = await report(alice, code.id, { outcome: 'worked' });
+        const r = await report(t.network.addUser('gina'), code.id, { outcome: 'worked' });
         const body = r.text;
         assert.doesNotMatch(body, /usr_[0-9A-Z]{26}/);
         assert.doesNotMatch(body, /reporter|install_id|cpi_/);

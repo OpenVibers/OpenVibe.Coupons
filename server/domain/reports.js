@@ -5,8 +5,9 @@
  *
  *   Who may report: a signed-in person (site form or a Bearer Network token), an extension install
  *   token with the coupons.report scope (it belongs to the person who connected it), or a service
- *   with coupons.report.create acting for a person (X-OV-Subject). Never anonymously, and never as
- *   AI output (X-OV-Origin: ai is refused): a model cannot report that a code works.
+ *   with coupons.report.create acting for a person (X-OV-Subject). Never anonymously, never as
+ *   AI output (X-OV-Origin: ai is refused): a model cannot report that a code works, and never by
+ *   a person who submitted the code or evidence for it (403 report.own_submission).
  *
  *   Deduplicated: one row per (reporter, coupon, UTC day). A second report the same day with the
  *   same outcome changes nothing; with the other outcome it replaces that day's row (a correction,
@@ -37,6 +38,7 @@ function createReports({ store, config, coupons, merchants, publication }) {
                             VALUES (@coupon_id, @reporter_key, @channel, @install_id, @day, @outcome, @reason, @now, @now)`),
         correct: db.prepare('UPDATE coupon_validation_reports SET outcome = @outcome, reason = @reason, channel = @channel, install_id = @install_id, updated_at = @now WHERE id = @id'),
         since: db.prepare('SELECT COUNT(*) AS n FROM coupon_validation_reports WHERE reporter_key = ? AND created_at > ?'),
+        submittedBy: db.prepare('SELECT 1 FROM coupon_sources WHERE coupon_id = ? AND submitted_by = ? LIMIT 1'),
         stamp: db.prepare(`UPDATE coupons SET last_report_at = @now,
                                last_worked_at = CASE WHEN @outcome = 'worked' THEN @now ELSE last_worked_at END,
                                last_failed_at = CASE WHEN @outcome = 'failed' THEN @now ELSE last_failed_at END
@@ -69,6 +71,11 @@ function createReports({ store, config, coupons, merchants, publication }) {
         const now = store.now();
         const isActive = m && m.status === 'active' && c.review_state === 'published' && c.status !== 'expired' && c.status !== 'disabled' && (c.expires_at == null || c.expires_at > now);
         if (!isActive) throw new ApiError(409, 'coupon.not_active', 'this code is not in active results (expired, disabled or not published)');
+        // The submitter is not a reporter: otherwise one account could submit a made-up code and
+        // make it "reported working" with its own report.
+        if (c.created_by === who.subject || q.submittedBy.get(c.id, who.subject)) {
+            throw new ApiError(403, 'report.own_submission', 'you submitted this code; its status comes from other people\'s reports');
+        }
 
         const key = reporterKey(who.subject);
         const day = new Date(now).toISOString().slice(0, 10);

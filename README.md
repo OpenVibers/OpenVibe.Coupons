@@ -116,6 +116,8 @@ The sweep records the decay: status history, `coupons.confidence.changed`, and a
   - Staff and services with `coupons.status.update` can only disable a code, mark it expired, or
     return it to active. Returning it recomputes the status from reports and time.
   - Reports marked `X-OV-Origin: ai` are refused.
+  - A person who submitted a code, or added evidence for it, can't report on it (403
+    `report.own_submission`). Otherwise one account could submit a made-up code and mark it working.
   - AI-extracted codes (`coupons.extract_coupon` output) are held for staff review. They start
     `unknown` and carry an on-page disclosure.
 

@@ -35,14 +35,17 @@ const { boot, check, done } = require('./helpers/boot');
     });
 
     await check('report and watch with plain forms; the watch list is private', async () => {
-        const r = await t.get(`/c/${codeId}/report`, { as: alice, form: { csrf: t.csrf(alice), outcome: 'worked', back: `/m/${shop.slug}` } });
+        const own = await t.get(`/c/${codeId}/report`, { as: alice, form: { csrf: t.csrf(alice), outcome: 'worked', back: `/m/${shop.slug}` } });
+        assert.strictEqual(own.status, 403, 'the submitter cannot report on her own code');
+        const bob = t.network.addUser('bob');
+        const r = await t.get(`/c/${codeId}/report`, { as: bob, form: { csrf: t.csrf(bob), outcome: 'worked', back: `/m/${shop.slug}` } });
         assert.strictEqual(r.status, 303);
         assert.strictEqual(r.headers.get('location'), `/m/${shop.slug}?done=reported`);
-        const after = await t.get(`/m/${shop.slug}?done=reported`, { as: alice });
+        const after = await t.get(`/m/${shop.slug}?done=reported`, { as: bob });
         assert.match(after.text, /your report was recorded/);
         assert.match(after.text, /Reported working/);
         assert.match(after.text, /Confidence 67%/);
-        const offsite = await t.get(`/c/${codeId}/report`, { as: alice, form: { csrf: t.csrf(alice), outcome: 'worked', back: 'https://evil.example-shop.com/' } });
+        const offsite = await t.get(`/c/${codeId}/report`, { as: bob, form: { csrf: t.csrf(bob), outcome: 'worked', back: 'https://evil.example-shop.com/' } });
         assert.strictEqual(offsite.headers.get('location'), `/c/${codeId}?done=report_same`, 'no open redirect');
         const w = await t.get(`/m/${shop.slug}/watch`, { as: alice, form: { csrf: t.csrf(alice), action: 'watch' } });
         assert.strictEqual(w.status, 303);

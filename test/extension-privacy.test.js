@@ -16,7 +16,8 @@ const DAY = 24 * 3600 * 1000;
     const alice = t.network.addUser('alice');
     const bob = t.network.addUser('bob');
     const shop = await t.merchant({ name: 'Paper Lantern', host: 'paperlantern.store' });
-    const code = (await t.submit(alice, { host: 'paperlantern.store', code: 'GLOW', title: 'Ten off lamps', evidence_url: 'https://paperlantern.store/sale' })).json().coupon;
+    const submitter = t.network.addUser('sam');
+    const code = (await t.submit(submitter, { host: 'paperlantern.store', code: 'GLOW', title: 'Ten off lamps', evidence_url: 'https://paperlantern.store/sale' })).json().coupon;
     await t.get(`/api/v1/coupons/${code.id}/report`, { as: t.network.userToken(alice), json: { outcome: 'worked' } });
 
     let aliceToken;
