@@ -2,10 +2,11 @@
 
 > Coupon codes with merchant matching, restrictions, expiry and real-people validity reports.
 
-**Status:** alpha (roadmap Wave 18, Coupons part). The service runs and its tests pass. It is **not
-deployed**, `openvibe.coupons` still shows its placeholder from OpenVibe.Sites, it holds **no codes**
-(nothing is seeded), and its capabilities and service manifest are proposals that the next
-openvibe-contracts release has to include.
+**Status:** alpha (roadmap Wave 18, Coupons part). The service runs and its tests pass. It is
+**deployed internally, not launched**: it runs on the production host on 127.0.0.1:4850 only
+(release `54df411`, `/api/ready` 200), `openvibe.coupons` still shows its placeholder from
+OpenVibe.Sites, and it holds **no codes** (nothing is seeded, no coupons source is enabled). Its
+capabilities and service manifest are registered in openvibe-contracts v0.25.0.
 **Domain:** `openvibe.coupons` · **Port:** 4850 · **Service id:** `coupons`
 **Plan:** OpenVibe End-to-End Realignment & Implementation Plan, revision 3 (20 Sep 2026), §12.10; roadmap §4.2 D, §15.13, §29, §32.
 **License:** AGPL-3.0 (same as every OpenVibe service).
@@ -256,7 +257,7 @@ The charter's `coupons.created|updated|expired|disabled` are these `coupons.coup
 types. Every envelope validates as `events.event-envelope@1` (tested), with actor
 `{type: service, id: coupons}`.
 
-## Capabilities (proposed: `docs/capabilities-proposal/`)
+## Capabilities (registered in openvibe-contracts v0.25.0)
 
 Service tokens use audience `openvibe.coupons`, with one capability per route:
 
@@ -268,25 +269,26 @@ Service tokens use audience `openvibe.coupons`, with one capability per route:
 - `coupons.merchant.manage` (new: the staff and service merchant administration the lookups
   depend on)
 
-Until the proposals are released, grants for these ids are decided locally with the contracts
-library's matching rule (`server/auth/capabilities.js`). Nothing changes when they are released.
-Install scopes (`coupons.lookup`, `coupons.report`) are Coupons-local and aren't capabilities. The
-service manifest proposal is `docs/service-manifest-proposal.json`.
+Grants for these ids are decided with the contracts library's matching rule
+(`server/auth/capabilities.js`). The ids and the service manifest are released in
+openvibe-contracts v0.25.0 from the proposals in `docs/capabilities-proposal/` and
+`docs/service-manifest-proposal.json`. Install scopes (`coupons.lookup`, `coupons.report`) are
+Coupons-local and aren't capabilities.
 
 ## Depends on
 
-- **Packages** (all pinned by release tarball): `openvibe-publishing` v0.2.0 (seo gate, ssr,
-  index-hooks), `openvibe-contracts` v0.19.0, `openvibe-shared` v1.3.0 (chrome, app icon, footer,
+- **Packages** (all pinned by release tarball): `openvibe-publishing` v0.2.1 (seo gate, ssr,
+  index-hooks), `openvibe-contracts` v0.25.0, `openvibe-shared` v1.3.0 (chrome, app icon, footer,
   legal, release, metrics, ready, seo), `openvibe-sdk` v0.2.2 (events outbox, service tokens).
 - **OpenVibe.Network:**
-  - SSO: an OAuth client `coupons` with redirect `https://openvibe.coupons/auth/callback`. It is
-    **not seeded yet**.
+  - SSO: an OAuth client `coupons` with redirect `https://openvibe.coupons/auth/callback`
+    (registered in production).
   - JWKS.
 - **OpenVibe.Sources:** `sources.item.read`, category `coupons`. The seeded `staff-coupon-codes`
   source is disabled until a person enables it.
 - **OpenVibe.Events:** `events.event.publish`.
 - **OpenVibe.Search:** consumes `coupons.index_document.*`. `coupons` has to be in Search's
-  `SEARCH_EVENT_OWNERS`.
+  `SEARCH_EVENT_OWNERS` (it is, in production).
 
 ### Grants the Network must hold
 
@@ -352,7 +354,7 @@ Each grant is `[client, capability, audience]`:
 - **Known gaps:**
   - No Community discussion on code pages yet. The charter lists comments, and none are
     implemented.
-  - Watches don't notify: there's no Network notification grant yet.
+  - Watches don't notify: OpenVibe.Network has no notification consumer yet.
   - There's no staff UI to edit a code's text or restrictions. Staff can take a code down and ask
     for a resubmission.
   - The public-suffix subset needs maintenance as merchants are added.
@@ -366,11 +368,11 @@ This repository alone doesn't make the product live. `openvibe.coupons` keeps it
 holds. Status against each point:
 
 1. **Runtime, health, readiness, observability:** done.
-2. **Canonical identity and auth:** done. The OAuth client still has to be seeded in the Network.
+2. **Canonical identity and auth:** done. The OAuth client, service principal and grants exist in production.
 3. **SSR public routes useful without JS:** done.
-4. **Persistence and end-to-end workflows:** done.
-5. **Capability and event registration against OpenVibe.Contracts:** proposals are in `docs/`,
-   waiting on the release.
+4. **Persistence and end-to-end workflows:** done and deployed on the host (loopback only, empty database).
+5. **Capability and event registration against OpenVibe.Contracts:** done (openvibe-contracts
+   v0.25.0).
 6. **Migration and seed strategy, threat review, sitemap/robots/feed behaviour:**
    - There's nothing to migrate and nothing is seeded.
    - Codes come from members, staff and the Sources `coupons` category.
@@ -418,8 +420,8 @@ fnm exec --using=22.22.1 npm run dev       # http://localhost:4850 (set OV_OAUTH
    `StateDirectory=openvibe-coupons`).
 4. **nginx:** install `deploy/nginx/openvibe.coupons.conf`. `/metrics` is never proxied.
 5. **Search:** add `coupons` to `SEARCH_EVENT_OWNERS`.
-6. **Contracts:** release the capability and manifest proposals in openvibe-contracts. Then CI's
-   contracts check can drop `continue-on-error`.
+6. **Contracts:** done: the capabilities and manifest are released in openvibe-contracts v0.25.0,
+   and CI's contracts check runs against them.
 7. **Launch:** in the same release, remove `openvibe.coupons` from OpenVibe.Sites and flip the
    Network hub entry (see the launch rule above).
 

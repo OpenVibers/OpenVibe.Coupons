@@ -8,8 +8,8 @@
   "port": 4850,
   "domain": "openvibe.coupons",
   "packages": [
-    "openvibe-publishing v0.2.0",
-    "openvibe-contracts v0.19.0",
+    "openvibe-publishing v0.2.1",
+    "openvibe-contracts v0.25.0",
     "openvibe-shared v1.3.0",
     "openvibe-sdk v0.2.2"
   ],
@@ -22,12 +22,13 @@
     "coupons.merchant.manage"
   ],
   "installScopes": ["coupons.lookup", "coupons.report"],
-  "capabilitiesRegistered": false,
-  "serviceManifestRegistered": false,
-  "seedCoupons": "none",
-  "notifications": "watches are recorded; no notification is sent yet",
-  "client": "OpenVibers/OpenVibe.Extensions browser/ (not published to any store)",
-  "deployed": false,
+  "capabilitiesRegistered": true,
+  "serviceManifestRegistered": true,
+  "seedCoupons": "none (production holds 0 coupons and 0 merchants)",
+  "notifications": "watches are recorded; no notification is sent: OpenVibe.Network has no notification consumer yet",
+  "client": "OpenVibers/OpenVibe.Extensions browser/ (not published to any store; the Coupons API it calls is not public yet)",
+  "deployed": true,
+  "deployment": "openvibe-ovh, unit openvibe-coupons, 127.0.0.1:4850 loopback only (release 54df411; the later 9b9549e changes only the repo's nginx reference file); /api/ready 200 with every check ok; Network OAuth client coupons and its grants exist; production database holds 0 coupons. Deployed internally, not launched: openvibe.coupons still serves the OpenVibe.Sites placeholder until a person verifies a coupons source's terms and enables it in Sources",
   "placeholderInSites": true,
-  "updated": "2026-09-22"
+  "updated": "2026-09-23"
 }
