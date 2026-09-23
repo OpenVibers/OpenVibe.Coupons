@@ -278,7 +278,7 @@ Coupons-local and aren't capabilities.
 ## Depends on
 
 - **Packages** (all pinned by release tarball): `openvibe-publishing` v0.2.1 (seo gate, ssr,
-  index-hooks), `openvibe-contracts` v0.32.0, `openvibe-shared` v1.5.0 (chrome, app icon, footer,
+  index-hooks), `openvibe-contracts` v0.33.0, `openvibe-shared` v1.5.1 (chrome, app icon, footer,
   legal, release, metrics, ready, seo), `openvibe-sdk` v0.5.0 (events outbox, service tokens).
 - **OpenVibe.Network:**
   - SSO: an OAuth client `coupons` with redirect `https://openvibe.coupons/auth/callback`
