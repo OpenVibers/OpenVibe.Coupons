@@ -20,6 +20,7 @@
  * everything else is `private, no-store`. All pages vary on Cookie and Authorization.
  */
 const express = require('express');
+const frame = require('openvibe-shared/frame');
 const seo = require('openvibe-publishing/seo');
 const { renderPage } = require('../render/layout');
 const pages = require('../render/pages');
@@ -94,6 +95,12 @@ function createPublicRoutes(ctx) {
     }
 
     // ── Home, about ─────────────────────────────────────────
+    // What shipped on OpenVibe.Coupons: the shared update log every OpenVibe site has.
+    router.get('/updates', (req, res) => send(req, res, 200, {
+        title: 'What shipped on OpenVibe.Coupons', description: 'Every change deployed to OpenVibe.Coupons, newest first.',
+        decision: pageDecision('/updates'), canonical: `${config.baseUrl}/updates`,
+        body: frame.updatesBody({ service: 'coupons', siteName: 'OpenVibe.Coupons' }) + frame.shippedScript(),
+    }, { cacheable: true }));
     router.get('/', (req, res) => {
         const q = typeof req.query.q === 'string' ? req.query.q.slice(0, 60) : '';
         const recent = coupons.recentActive(12).map((c) => ({ coupon: c, merchant: merchants.byId(c.merchant_id) }));
