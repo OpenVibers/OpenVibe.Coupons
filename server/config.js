@@ -48,7 +48,7 @@ function load(env = process.env) {
         // /api/ready says so. Changing it restarts same-day deduplication.
         reporterKeySecret: env.COUPONS_REPORTER_KEY_SECRET || '',
 
-        // Staff (merchant approval, moderation): Network admins, plus these subjects (usr_…).
+        // Staff (merchant approval, moderation): staff.editorial.manage (Network admins), plus these subjects (usr_…).
         staffSubjects: list(env.COUPONS_STAFF_SUBJECTS),
 
         // Browser-extension origins allowed by CORS on the two lookup routes ONLY (never on

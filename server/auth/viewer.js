@@ -28,7 +28,7 @@ const { extractToken, claimsToUser, decodeJwtPayload } = require('./sso');
 const { checkCapability } = require('./capabilities');
 const { ApiError } = require('../http/errors');
 
-const { ids, serviceAuth, http } = contracts;
+const { ids, serviceAuth, http, staff: staffMap } = contracts;
 const PRINCIPAL_SUB = /^(svc|app|mod):/;
 const AUDIENCE = 'openvibe.coupons';
 
@@ -40,7 +40,8 @@ function createViewerResolver({ auth, config, installs }) {
     function userFromClaims(claims, token) {
         if (!claims || (typeof claims.sub === 'string' && PRINCIPAL_SUB.test(claims.sub))) return null;
         const subject = ids.isSubjectId('user', claims.subject_id) ? claims.subject_id : null;
-        const staff = Boolean(subject) && (claims.role === 'admin' || staffSubjects.has(subject));
+        // Staff = the contracts staff map's staff.editorial.manage (ADR-022), or a subject in COUPONS_STAFF_SUBJECTS.
+        const staff = Boolean(subject) && (staffMap.can(claims, 'staff.editorial.manage') || staffSubjects.has(subject));
         return { kind: 'user', subject, staff, origin: 'user', user: claimsToUser(claims), token };
     }
 
