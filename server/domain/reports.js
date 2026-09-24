@@ -89,7 +89,7 @@ function createReports({ store, config, coupons, merchants, publication }) {
                     throw new ApiError(429, 'report.rate_limited', 'too many reports; try again later');
                 }
                 q.insert.run({ coupon_id: c.id, reporter_key: key, channel: who.channel, install_id: who.install, day, outcome, reason, now });
-                publication.emit('coupons.report.created', { type: 'coupon', id: c.id }, { merchant_id: c.merchant_id, outcome, ...(reason ? { reason } : {}), channel: who.channel, day }, { traceparent });
+                publication.emit('coupons.report.created', { type: 'coupon', id: c.id }, { merchant_id: c.merchant_id, outcome, ...(reason && /^[a-z][a-z0-9_]{0,39}$/.test(reason) ? { reason } : {}), channel: who.channel, day }, { traceparent });
             } else {
                 q.correct.run({ id: existing.id, outcome, reason, channel: who.channel, install_id: who.install, now });
             }

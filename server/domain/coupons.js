@@ -1,5 +1,12 @@
 'use strict';
 
+/** A reason in a public event is a short code; a staff note or a calling service's free text never leaves Coupons. */
+function publicReason(reason) {
+    const r = String(reason || '');
+    if (r.startsWith('staff:')) return 'staff';
+    return /^[a-z][a-z0-9_]{0,39}$/.test(r) ? r : 'other';
+}
+
 /**
  * Codes: submission, restrictions, hints, evidence, status and confidence, expiry.
  *
@@ -265,7 +272,7 @@ function createCoupons({ store, merchants, publication }) {
         if (statusChanged || confChanged) q.history.run(id, before.status, after.status, before.confidence, after.confidence, reason, actor, now);
         if (statusChanged) {
             const type = after.status === 'expired' ? 'coupons.coupon.expired' : after.status === 'disabled' ? 'coupons.coupon.disabled' : 'coupons.coupon.updated';
-            publication.emit(type, { type: 'coupon', id }, lifecyclePayload(after, { previous_status: before.status, reason: reason.startsWith('staff:') ? 'staff' : reason }), { isPublic: publiclyListed(after) || publiclyListed(before), traceparent });
+            publication.emit(type, { type: 'coupon', id }, lifecyclePayload(after, { previous_status: before.status, reason: publicReason(reason) }), { isPublic: publiclyListed(after) || publiclyListed(before), traceparent });
         }
         if (confChanged) {
             publication.emit('coupons.confidence.changed', { type: 'coupon', id }, { merchant_id: after.merchant_id, from: before.confidence, to: after.confidence, status: after.status }, { traceparent });
