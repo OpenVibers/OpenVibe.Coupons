@@ -147,7 +147,7 @@ function parseSubmission(body, now) {
     };
 }
 
-function createCoupons({ store, merchants, publication }) {
+function createCoupons({ store, merchants, publication, outbox = null }) {
     const { db } = store;
     const q = {
         byId: db.prepare('SELECT * FROM coupons WHERE id = ?'),
@@ -392,24 +392,32 @@ function createCoupons({ store, merchants, publication }) {
      */
     function setStatus(c, target, { actor, note = '', traceparent } = {}) {
         const why = `${actor.startsWith('svc:') ? `service:${actor.slice(4)}` : 'staff'}${note ? `:${text(note, 200)}` : ''}`;
-        if (target === 'disabled') return store.tx(() => recompute(c.id, { reason: why, actor, forceStatus: 'disabled', traceparent }));
-        if (target === 'expired') {
-            if (c.status === 'disabled') throw new ApiError(409, 'coupon.disabled', 'enable the code before marking it expired');
-            return store.tx(() => recompute(c.id, { reason: why, actor, forceStatus: 'expired', traceparent }));
-        }
-        if (target === 'active') {
-            if (c.expires_at != null && c.expires_at <= store.now()) throw new ApiError(409, 'coupon.expiry_passed', 'its known expiry has passed; change the expiry first');
-            return store.tx(() => recompute(c.id, { reason: why, actor, forceStatus: 'unknown', traceparent }));
-        }
-        throw new ApiError(422, 'coupon.status_not_settable', 'status can be set to disabled, expired or active only; working/failed come from people\'s reports');
+        const force = { disabled: 'disabled', expired: 'expired', active: 'unknown' }[target];
+        if (!force) throw new ApiError(422, 'coupon.status_not_settable', 'status can be set to disabled, expired or active only; working/failed come from people\'s reports');
+        if (target === 'expired' && c.status === 'disabled') throw new ApiError(409, 'coupon.disabled', 'enable the code before marking it expired');
+        if (target === 'active' && c.expires_at != null && c.expires_at <= store.now()) throw new ApiError(409, 'coupon.expiry_passed', 'its known expiry has passed; change the expiry first');
+        return store.tx(() => {
+            const after = recompute(c.id, { reason: why, actor, forceStatus: force, traceparent });
+            // Staff or a staff-capable service acting on someone else's code: the moderation audit log (ADR-022).
+            if (after && after.status !== c.status && actor !== c.created_by) moderated(`coupon.${target === 'active' ? 'enabled' : target}`, c, actor, { reason: note ? text(note, 200) : null, details: { previous: c.status, status: after.status }, traceparent });
+            return after;
+        });
+    }
+
+    /** coupons.moderation.action for a staff or service action (never the submitter; see events/outbox.js). */
+    function moderated(action, c, actor, { reason = null, details = {}, traceparent } = {}) {
+        if (!outbox) return null;
+        const person = /^usr_/.test(String(actor || '')) ? actor : null;
+        return outbox.moderationAction({ action, target: { type: 'coupon', id: c.id }, actorSubject: person, reason, details: { merchant_id: c.merchant_id, origin: c.origin, ...details } }, { traceparent });
     }
 
     /** Staff: publish a code that waits for review. */
-    function approve(c, { actor }) {
+    function approve(c, { actor, audit = true, traceparent } = {}) {
         return store.tx(() => {
             if (q.setReview.run(store.now(), c.id).changes !== 1) return get(c.id);
             const after = get(c.id);
             q.history.run(c.id, c.status, after.status, c.confidence, after.confidence, 'staff:approved', actor, store.now());
+            if (audit && actor !== c.created_by) moderated('coupon.approved', c, actor, { traceparent });
             publication.emit('coupons.coupon.updated', { type: 'coupon', id: c.id }, lifecyclePayload(after, { previous_status: c.status, reason: 'approved' }), { isPublic: publiclyListed(after) });
             syncIndex(after);
             return after;
@@ -518,7 +526,7 @@ function createCoupons({ store, merchants, publication }) {
             const out = [];
             for (const id of q.byMerchantPending.all(merchant.id).map((r) => r.id)) {
                 const c = get(id);
-                if (c.origin === 'member' || c.origin === 'staff') out.push(approve(c, { actor }));
+                if (c.origin === 'member' || c.origin === 'staff') out.push(approve(c, { actor, audit: false }));  // the shop's approval is the audited action
             }
             return out;
         },

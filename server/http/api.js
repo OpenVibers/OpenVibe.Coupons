@@ -209,7 +209,7 @@ function createApi(ctx) {
         if (!m) throw new ApiError(404, 'merchant.not_found', 'no such merchant');
         const status = (req.body || {}).status;
         if (!['active', 'disabled'].includes(status)) throw new ApiError(422, 'merchant.bad_status', 'status must be active or disabled');
-        const after = ctx.moderation.setMerchantStatus(m, status, { actor });
+        const after = ctx.moderation.setMerchantStatus(m, status, { actor, traceparent: req.get('traceparent') });
         return { merchant: { ...merchantView(after), status: after.status } };
     }));
 

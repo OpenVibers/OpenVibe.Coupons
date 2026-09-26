@@ -251,11 +251,12 @@ use a visitor's session against the API. Errors are RFC 9457 problems.
 | `coupons.coupon.disabled` | The code is taken down (by staff, a service, or because its last Sources evidence was removed). |
 | `coupons.report.created` | A new report (not a deduplicated repeat). The payload is the outcome, reason, channel and day only. |
 | `coupons.confidence.changed` | The confidence moved, because of reports or decay. The payload is from, to and status. |
+| `coupons.moderation.action` | Staff (or a service with `coupons.status.update` / `coupons.merchant.manage`) disabled, expired, re-enabled or approved someone else's code (`coupon.*`), or approved, disabled or re-enabled a shop (`merchant.*`). For the network's moderation audit log (ADR-022, `common.moderation-action@1`). It names the staff member who acted, never the submitter, and never the code. |
 | `coupons.index_document.upserted` / `.deleted` | `search.index-document@1` documents for `coupon` and `merchant`, and tombstones when a code leaves active results. A resource that was never indexed gets no tombstone. |
 
 The charter's `coupons.created|updated|expired|disabled` are these `coupons.coupon.*` 3-segment
 types. Every envelope validates as `events.event-envelope@1` (tested), with actor
-`{type: service, id: coupons}`.
+`{type: service, id: coupons}`, except `coupons.moderation.action`, whose actor is the staff member.
 
 ## Capabilities (registered in openvibe-contracts v0.25.0)
 

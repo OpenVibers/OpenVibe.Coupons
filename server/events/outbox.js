@@ -10,9 +10,17 @@
  *                                                      coupons and merchants (openvibe-publishing
  *                                                      index-hooks), consumed by Search's
  *                                                      '*.index_document.*' subscription
+ *   coupons.moderation.action                          staff (or a service holding the staff
+ *                                                      capability) disabled, expired, re-enabled or
+ *                                                      approved someone else's code, or approved,
+ *                                                      disabled or re-enabled a shop
+ *                                                      (common.moderation-action@1, ADR-022), for
+ *                                                      Network's moderation audit log
  *
  * Every envelope's actor is the service itself ({ type: 'service', id: 'coupons' }) and no payload
- * names a person: submitters and reporters stay inside Coupons.
+ * names a person: submitters and reporters stay inside Coupons. The one exception is the staff
+ * member who took a moderation action, named in coupons.moderation.action (the audit log exists
+ * to say who acted); its target never names the submitter.
  *
  * emit() runs inside the SQLite transaction that makes the change, so an event exists if and only
  * if its change committed. The relay publishes with Coupons' service token (events.event.publish,
@@ -54,8 +62,24 @@ function createCouponsOutbox({ db, config, fetchImpl, now, log = console }) {
         return outbox.enqueue(envelope, { traceparent });
     }
 
+    /**
+     * coupons.moderation.action, inside the caller's transaction. actorSubject: the staff member (null
+     * for a service); target: { type, id }, owner_subject always null. Never the code or its text.
+     */
+    function moderationAction({ action, target, actorSubject, reason = null, details = {} }, { traceparent } = {}) {
+        const t = { type: target.type, id: String(target.id).slice(0, 200), owner_subject: null };
+        return emit({
+            event_type: 'coupons.moderation.action',
+            actor: actorSubject ? { type: 'user', id: actorSubject } : { type: 'service', id: 'coupons' },
+            subject: { type: 'moderation_action', id: `${t.type}:${t.id}`.slice(0, 200) },
+            visibility: 'internal',
+            payload: { action, target: t, actor_subject: actorSubject || null, reason: reason ? String(reason).slice(0, 500) : null, details: details || {} },
+        }, { traceparent });
+    }
+
     return {
         emit,
+        moderationAction,
         outbox,
         enabled,
         start() { if (enabled) outbox.start(); },

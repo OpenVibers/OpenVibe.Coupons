@@ -221,6 +221,14 @@ const DAY = 24 * HOUR;
         for (const e of all) {
             const v = contracts.validate('events.event-envelope@1', e);
             assert.ok(v.valid, `${e.event_type}: ${JSON.stringify(v.errors)}`);
+            if (e.event_type === 'coupons.moderation.action') {
+                // The audit log names the staff member who acted, and nobody else (never a submitter).
+                assert.ok(contracts.validate('coupons.moderation.action@1', e.payload).valid);
+                assert.strictEqual(e.payload.target.owner_subject, null);
+                assert.ok(e.payload.actor_subject === null || e.payload.actor_subject === t.staff.subject);
+                assert.doesNotMatch(JSON.stringify(e).split(t.staff.subject).join(''), /usr_[0-9A-Z]{26}/, `${e.event_type} names someone other than staff`);
+                continue;
+            }
             assert.deepStrictEqual(e.actor, { type: 'service', id: 'coupons' });
             assert.doesNotMatch(JSON.stringify(e), /usr_[0-9A-Z]{26}/, `${e.event_type} names a person`);
             if (e.event_type === 'coupons.index_document.upserted') {
