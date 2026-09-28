@@ -8,7 +8,7 @@
   "port": 4850,
   "domain": "openvibe.coupons",
   "contracts": "openvibe-contracts v0.53.0",
-  "packages": ["openvibe-publishing v0.4.0", "openvibe-contracts v0.53.0", "openvibe-shared v1.22.0", "openvibe-sdk v0.12.0"],
+  "packages": ["openvibe-publishing v0.4.0", "openvibe-contracts v0.53.0", "openvibe-shared v1.25.0", "openvibe-sdk v0.12.0"],
   "capabilities": ["coupons.coupon.submit", "coupons.report.create", "coupons.merchant.resolve", "coupons.coupon.lookup", "coupons.status.update", "coupons.merchant.manage"],
   "installScopes": ["coupons.lookup", "coupons.report"],
   "capabilitiesRegistered": true,

@@ -297,7 +297,7 @@ What Coupons calls elsewhere, and with which grant, is under
 ## Depends on
 
 - **Packages** (all pinned by release tarball): `openvibe-publishing` v0.4.0 (seo gate, ssr,
-  index-hooks), `openvibe-contracts` v0.53.0, `openvibe-shared` v1.22.0 (chrome, app icon, footer,
+  index-hooks), `openvibe-contracts` v0.53.0, `openvibe-shared` v1.25.0 (chrome, app icon, footer,
   legal, release, metrics, ready, seo), `openvibe-sdk` v0.12.0 (events outbox, service tokens,
   per-actor limits).
 - **OpenVibe.Network:**
