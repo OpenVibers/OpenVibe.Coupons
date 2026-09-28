@@ -33,10 +33,13 @@ const { SCOPES } = require('../auth/capabilities');
 const COUPON_ID_RE = /^cpn_[0-9A-HJKMNP-TV-Z]{26}$/;
 
 function createPublicRoutes(ctx) {
-    const { config, store, merchants, coupons, reports, watches, installs, publication, viewers, moderation } = ctx;
+    const { config, store, merchants, coupons, reports, watches, installs, publication, viewers, moderation, actorLimits } = ctx;
     const router = express.Router();
     const form = express.urlencoded({ extended: false, limit: '32kb' });
     router.use(viewers.pages());
+    // Per-actor limits on the forms (http/actor-limits.js), before the form is read: each shares its budget
+    // with the API route that does the same thing. Revoking a browser helper is never limited.
+    const B = (name) => actorLimits.budget(name);
 
     // ── Helpers ─────────────────────────────────────────────
     function cacheHeaders(res, { cacheable, robots }) {
@@ -168,7 +171,7 @@ function createPublicRoutes(ctx) {
         }, { cacheable: !flashMsg });
     });
 
-    router.post('/m/:slug/watch', form, (req, res) => {
+    router.post('/m/:slug/watch', B('coupons.watch'), form, (req, res) => {
         if (!requireForm(req, res)) return;
         const m = merchants.get(req.params.slug);
         if (!m || m.status !== 'active') return notFound(req, res);
@@ -210,7 +213,7 @@ function createPublicRoutes(ctx) {
         }, { cacheable: !flashMsg });
     });
 
-    router.post('/c/:id/report', form, (req, res) => {
+    router.post('/c/:id/report', B('coupons.report.create'), form, (req, res) => {
         if (!requireForm(req, res)) return;
         const back = safeBack(req.body.back, `/c/${req.params.id}`);
         try {
@@ -233,7 +236,7 @@ function createPublicRoutes(ctx) {
         });
     });
 
-    router.post('/submit', form, (req, res) => {
+    router.post('/submit', B('coupons.coupon.submit'), form, (req, res) => {
         if (!requireForm(req, res)) return;
         const b = req.body || {};
         const m = b.merchant ? merchants.get(String(b.merchant)) : null;
@@ -269,7 +272,7 @@ function createPublicRoutes(ctx) {
         }, { cacheable: req.viewer.kind === 'anonymous' });
     }
     router.get('/connect-extension', (req, res) => connectPage(req, res, 200));
-    router.post('/connect-extension', form, (req, res) => {
+    router.post('/connect-extension', B('coupons.install.create'), form, (req, res) => {
         if (!requireForm(req, res)) return;
         try {
             const created = installs.create(req.viewer.subject, { label: req.body.label, scopes: req.body.scope_report ? [SCOPES.LOOKUP, SCOPES.REPORT] : [SCOPES.LOOKUP] });
@@ -322,19 +325,19 @@ function createPublicRoutes(ctx) {
         };
     }
     router.get('/staff', (req, res) => { if (requireStaff(req, res)) staffPage(req, res); });
-    router.post('/staff/merchants', form, staffAction((req) => {
+    router.post('/staff/merchants', B('coupons.moderate'), form, staffAction((req) => {
         const b = req.body;
         const m = merchants.create({ name: b.name, domains: [{ host: b.host, include_subdomains: Boolean(b.include_subdomains), path_prefix: b.path_prefix || '' }] }, { status: 'active', actor: req.viewer.subject });
         store.tx(() => coupons.syncMerchant(m));
         return `Added ${m.name}.`;
     }));
-    router.post('/staff/merchants/:id/status', form, staffAction((req) => {
+    router.post('/staff/merchants/:id/status', B('coupons.moderate'), form, staffAction((req) => {
         const m = merchants.get(req.params.id);
         if (!m) throw new ApiError(404, 'merchant.not_found', 'no such shop');
         const after = moderation.setMerchantStatus(m, req.body.status, { actor: req.viewer.subject });
         return `${after.name} is now ${after.status}.`;
     }));
-    router.post('/staff/coupons/:id/approve', form, staffAction((req) => {
+    router.post('/staff/coupons/:id/approve', B('coupons.moderate'), form, staffAction((req) => {
         const c = coupons.get(req.params.id);
         if (!c) throw new ApiError(404, 'coupon.not_found', 'no such code');
         const m = merchants.byId(c.merchant_id);
@@ -342,7 +345,7 @@ function createPublicRoutes(ctx) {
         coupons.approve(c, { actor: req.viewer.subject });
         return `Published ${c.code}.`;
     }));
-    router.post(['/staff/coupons/status', '/staff/coupons/:id/status'], form, staffAction((req) => {
+    router.post(['/staff/coupons/status', '/staff/coupons/:id/status'], B('coupons.moderate'), form, staffAction((req) => {
         const c = coupons.get(req.params.id || req.body.id);
         if (!c) throw new ApiError(404, 'coupon.not_found', 'no such code');
         const after = coupons.setStatus(c, req.body.status, { actor: req.viewer.subject, note: req.body.note });

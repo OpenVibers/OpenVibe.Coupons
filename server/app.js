@@ -32,13 +32,17 @@ const { createApi } = require('./http/api');
 const { createPublicRoutes } = require('./http/public');
 const { createDiscoveryRoutes } = require('./http/discovery');
 const { createCouponsReadiness } = require('./observability');
+const { createActorLimits } = require('./http/actor-limits');
 const { createWorker } = require('./worker');
 const { assetVersion } = require('./render/layout');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const VERSION = require('../package.json').version;
 
-/** opts: config, store | dbPath, now (clock), fetchImpl, auth (a createAuthClient-like object), log */
+/**
+ * opts: config, store | dbPath, now (clock), fetchImpl, auth (a createAuthClient-like object), log,
+ * limitsNow (the per-actor limiter's clock, tests)
+ */
 function createApp(opts = {}) {
     const config = opts.config || configLib.load();
     const log = opts.log || console;
@@ -67,6 +71,9 @@ function createApp(opts = {}) {
     const metrics = require('openvibe-shared/metrics').instrument(app, { service: 'coupons', release: release.release });
     app.locals.metrics = metrics.registry;
     app.locals.ctx = ctx;
+    // Per-actor limits (http/actor-limits.js) for the API and the page forms, counted once each router
+    // resolved req.viewer; the lookup, per-address and per-person limits stay.
+    ctx.actorLimits = createActorLimits({ config, now: opts.limitsNow || (() => Date.now()), registry: metrics.registry, log });
 
     app.use(contracts.http.middleware());
     app.use(helmet({

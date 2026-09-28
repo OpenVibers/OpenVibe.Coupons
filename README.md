@@ -220,6 +220,21 @@ use a visitor's session against the API. Errors are RFC 9457 problems.
   - Submissions: `COUPONS_SUBMISSIONS_PER_HOUR` (10) and `_PER_DAY` (30) per person, ×10 for
     services.
   - Plus a per-IP ceiling in Express and the nginx zones.
+  - Per-actor limits (`server/http/actor-limits.js`, openvibe-sdk/limits, roadmap WS-R task 4) on
+    the API and the page forms, once the caller is known and before any work. A person counts as
+    `user:usr_…` whether they call with their Network token, a service names them, or one of their
+    browser helpers' install tokens sends the request: every browser a person connected counts
+    together, never by the address it reports from. A first-party service relaying a signed-out
+    visitor counts by the address it forwards, a service or app acting as itself by its principal,
+    and a signed-out caller by address. A first-party service reading for itself is not counted on
+    reads (the lookup limit above bounds it). API reads: `COUPONS_LIMITS_MINUTE` /
+    `COUPONS_LIMITS_HOUR` (120 a minute, 3000 an hour). Each write cap sits above the per-person
+    limit for the same action, and a form shares it with the API route: reports 30 a minute and 120
+    an hour; submissions 20 and 60 (a service submitting for people 120 and 600); staff and service
+    moderation (coupon and merchant status, merchants, domains, approvals) 60 and 600; connecting a
+    browser helper 5 and 20; watching a merchant 30 and 300. Revoking a browser helper is never
+    limited. Past a limit: `429` problem+json `rate_limited` with `Retry-After`, one `[Limits]` log
+    line and `coupons_rate_limited_total{limit,window}`. `test/actor-limits.test.js`.
 - **Privacy:**
   - No response, page or event names a submitter or reporter.
   - Report times are published to the hour.

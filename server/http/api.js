@@ -34,8 +34,13 @@ const hosts = require('../domain/hosts');
 const MOZ_EXTENSION_RE = /^moz-extension:\/\/[0-9a-f-]{36}$/;
 
 function createApi(ctx) {
-    const { config, viewers, merchants, coupons, reports, publication } = ctx;
+    const { config, viewers, merchants, coupons, reports, publication, actorLimits } = ctx;
     const router = express.Router();
+    // Per-actor limits (http/actor-limits.js), after the caller is resolved and its capability or scope
+    // checked, before the route does any work: reads take the defaults (after the lookup limiter), writes
+    // name their budget.
+    const reads = actorLimits.reads('coupons.read');
+    const moderate = actorLimits.budget('coupons.moderate');
 
     // ── Helpers ─────────────────────────────────────────────
     const noStore = (res) => res.set('Cache-Control', 'private, no-store');
@@ -112,7 +117,7 @@ function createApi(ctx) {
     // ── Lookup ──────────────────────────────────────────────
     router.options(['/merchants/resolve', '/merchants/:id/coupons'], lookupCors);
 
-    router.get('/merchants/resolve', lookupCors, lookupLimiter, guard(CAPABILITIES.MERCHANT_RESOLVE, { scope: SCOPES.LOOKUP }), run((req, res) => {
+    router.get('/merchants/resolve', lookupCors, lookupLimiter, guard(CAPABILITIES.MERCHANT_RESOLVE, { scope: SCOPES.LOOKUP }), reads, run((req, res) => {
         if (typeof req.query.host !== 'string') throw new ApiError(400, 'host.required', 'pass ?host=<hostname>');
         const found = merchants.resolve(req.query.host);
         publicCache(res);
@@ -128,19 +133,19 @@ function createApi(ctx) {
         };
     }));
 
-    router.get('/merchants/:id/coupons', lookupCors, lookupLimiter, guard(CAPABILITIES.COUPON_LOOKUP, { scope: SCOPES.LOOKUP }), run((req, res) => {
+    router.get('/merchants/:id/coupons', lookupCors, lookupLimiter, guard(CAPABILITIES.COUPON_LOOKUP, { scope: SCOPES.LOOKUP }), reads, run((req, res) => {
         const m = activeMerchant(req.params.id);
         publicCache(res);
         return { merchant: merchantView(m), coupons: coupons.active(m.id).map((c) => coupons.view(c, { merchant: m })) };
     }));
 
-    router.get('/merchants/:id', lookupLimiter, guard(CAPABILITIES.COUPON_LOOKUP, { scope: SCOPES.LOOKUP }), run((req, res) => {
+    router.get('/merchants/:id', lookupLimiter, guard(CAPABILITIES.COUPON_LOOKUP, { scope: SCOPES.LOOKUP }), reads, run((req, res) => {
         const m = activeMerchant(req.params.id);
         publicCache(res);
         return { merchant: merchantView(m) };
     }));
 
-    router.get('/coupons/:id', lookupLimiter, guard(CAPABILITIES.COUPON_LOOKUP, { scope: SCOPES.LOOKUP }), run((req, res) => {
+    router.get('/coupons/:id', lookupLimiter, guard(CAPABILITIES.COUPON_LOOKUP, { scope: SCOPES.LOOKUP }), reads, run((req, res) => {
         const c = coupons.get(req.params.id);
         const m = c && merchants.byId(c.merchant_id);
         if (!c || !m || m.status !== 'active' || c.review_state !== 'published' || c.status === 'disabled') throw new ApiError(404, 'coupon.not_found', 'no such code');
@@ -149,13 +154,13 @@ function createApi(ctx) {
     }));
 
     // ── Reports ─────────────────────────────────────────────
-    router.post('/coupons/:id/report', writeLimiter, jsonBody, guard(CAPABILITIES.REPORT_CREATE, { scope: SCOPES.REPORT }), run((req, res) => {
+    router.post('/coupons/:id/report', writeLimiter, jsonBody, guard(CAPABILITIES.REPORT_CREATE, { scope: SCOPES.REPORT }), actorLimits.budget('coupons.report.create'), run((req, res) => {
         noStore(res);
         return reports.report(req.viewer, req.params.id, req.body || {}, { channel: 'api', traceparent: req.get('traceparent') });
     }, (out) => (out.deduplicated ? 200 : 201)));
 
     // ── Submissions ─────────────────────────────────────────
-    router.post('/coupons/submit', writeLimiter, jsonBody, guard(CAPABILITIES.COUPON_SUBMIT), run((req, res) => {
+    router.post('/coupons/submit', writeLimiter, jsonBody, guard(CAPABILITIES.COUPON_SUBMIT), actorLimits.submit, run((req, res) => {
         noStore(res);
         const v = req.viewer;
         let who;
@@ -173,7 +178,7 @@ function createApi(ctx) {
     }, (out) => (out.duplicate ? 200 : 201)));
 
     // ── Staff and services ──────────────────────────────────
-    router.post('/coupons/:id/status', writeLimiter, jsonBody, guard(CAPABILITIES.STATUS_UPDATE), run((req, res) => {
+    router.post('/coupons/:id/status', writeLimiter, jsonBody, guard(CAPABILITIES.STATUS_UPDATE), moderate, run((req, res) => {
         noStore(res);
         const actor = requireStaffOrService(req);
         const c = coupons.get(req.params.id);
@@ -183,7 +188,7 @@ function createApi(ctx) {
         return { coupon: coupons.view(after) };
     }));
 
-    router.post('/merchants', writeLimiter, jsonBody, guard(CAPABILITIES.MERCHANT_MANAGE), run((req, res) => {
+    router.post('/merchants', writeLimiter, jsonBody, guard(CAPABILITIES.MERCHANT_MANAGE), moderate, run((req, res) => {
         noStore(res);
         const actor = requireStaffOrService(req);
         const body = req.body || {};
@@ -193,7 +198,7 @@ function createApi(ctx) {
         return { merchant: { ...merchantView(m), status: m.status } };
     }, 201));
 
-    router.post('/merchants/:id/domains', writeLimiter, jsonBody, guard(CAPABILITIES.MERCHANT_MANAGE), run((req, res) => {
+    router.post('/merchants/:id/domains', writeLimiter, jsonBody, guard(CAPABILITIES.MERCHANT_MANAGE), moderate, run((req, res) => {
         noStore(res);
         const actor = requireStaffOrService(req);
         const m = merchants.get(req.params.id);
@@ -202,7 +207,7 @@ function createApi(ctx) {
         return { merchant: { ...merchantView(m), status: m.status } };
     }, 201));
 
-    router.post('/merchants/:id/status', writeLimiter, jsonBody, guard(CAPABILITIES.MERCHANT_MANAGE), run((req, res) => {
+    router.post('/merchants/:id/status', writeLimiter, jsonBody, guard(CAPABILITIES.MERCHANT_MANAGE), moderate, run((req, res) => {
         noStore(res);
         const actor = requireStaffOrService(req);
         const m = merchants.get(req.params.id);
