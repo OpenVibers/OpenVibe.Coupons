@@ -291,11 +291,15 @@ openvibe-contracts v0.25.0 from the proposals in `docs/capabilities-proposal/` a
 `docs/service-manifest-proposal.json`. Install scopes (`coupons.lookup`, `coupons.report`) are
 Coupons-local and aren't capabilities.
 
+What Coupons calls elsewhere, and with which grant, is under
+[Grants the Network must hold](#grants-the-network-must-hold).
+
 ## Depends on
 
-- **Packages** (all pinned by release tarball): `openvibe-publishing` v0.2.1 (seo gate, ssr,
-  index-hooks), `openvibe-contracts` v0.33.0, `openvibe-shared` v1.5.1 (chrome, app icon, footer,
-  legal, release, metrics, ready, seo), `openvibe-sdk` v0.5.0 (events outbox, service tokens).
+- **Packages** (all pinned by release tarball): `openvibe-publishing` v0.4.0 (seo gate, ssr,
+  index-hooks), `openvibe-contracts` v0.53.0, `openvibe-shared` v1.22.0 (chrome, app icon, footer,
+  legal, release, metrics, ready, seo), `openvibe-sdk` v0.12.0 (events outbox, service tokens,
+  per-actor limits).
 - **OpenVibe.Network:**
   - SSO: an OAuth client `coupons` with redirect `https://openvibe.coupons/auth/callback`
     (registered in production).
@@ -337,6 +341,8 @@ Each grant is `[client, capability, audience]`:
 | The contract proposals are valid against the released schemas and match the code and its events. | `test/contracts.test.js` |
 
 ## Security and threat review
+
+Reporting a vulnerability: [SECURITY.md](SECURITY.md).
 
 - **Identity:**
   - Only verified Network JWTs (offline RS256 against JWKS), service tokens for audience
@@ -414,6 +420,15 @@ fnm exec --using=22.22.1 npm run dev       # http://localhost:4850 (set OV_OAUTH
 ```
 
 ## Deploy (for the lead)
+
+Production deploys with `sudo ovhost deploy coupons` on the host (strategy `git-checkout`: fetch,
+fast-forward `/opt/openvibe.coupons`, install on a lockfile change, restart, wait for `/api/ready`).
+The unit is `openvibe-coupons.service` on `127.0.0.1:4850`, the env file `/etc/openvibe/coupons.env`.
+Rollback: ovhost puts the previous sha back by itself when `/api/ready` does not answer 2xx after the
+restart; afterwards `sudo ovhost rollback coupons --to <sha>`. Nothing blocks a rollback: the schema
+code only adds tables and columns.
+
+First install (done once; kept for a rebuild):
 
 1. **Network:**
    - Create the service principal and OAuth client `coupons` (`server/setup/service-principal.js`),
