@@ -15,11 +15,11 @@ function createWorker({ config, coupons, importer, outbox, log = console }) {
     let importing = false;
     let lastSweep = null;
 
-    function sweep() {
+    async function sweep() {
         if (sweeping) return null;
         sweeping = true;
         try {
-            const r = coupons.sweep();
+            const r = await coupons.sweep();
             lastSweep = { at: Date.now(), ...r, error: null };
             if (r.expired.length || r.changed.length) outbox.kick();
             return r;

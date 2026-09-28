@@ -53,14 +53,14 @@ function createInstalls({ store, config }) {
         view,
 
         /** → { install (view), token } — the token exists only in this return value. */
-        create(subject, { label, scopes } = {}) {
+        async create(subject, { label, scopes } = {}) {
             if (!ids.isSubjectId('user', subject)) throw new ApiError(403, 'auth.person_required', 'only a signed-in person can connect an extension');
             const name = String(label == null ? '' : label).trim().slice(0, 60) || 'Browser helper';
             const wanted = new Set(Array.isArray(scopes) ? scopes : scopes ? [scopes] : []);
             for (const s of wanted) if (!ALL_SCOPES.includes(s)) throw new ApiError(422, 'install.bad_scope', `unknown scope ${s}`);
             wanted.add(SCOPES.LOOKUP);
             const now = store.now();
-            if (q.activeCount.get(subject, now).n >= config.limits.installsPerSubject) {
+            if ((await q.activeCount.get(subject, now)).n >= config.limits.installsPerSubject) {
                 throw new ApiError(409, 'install.limit', `at most ${config.limits.installsPerSubject} connected extensions; revoke one first`);
             }
             const token = `cpx_${crypto.randomBytes(32).toString('base64url')}`;
@@ -69,27 +69,27 @@ function createInstalls({ store, config }) {
                 label: name, scopes: JSON.stringify(ALL_SCOPES.filter((s) => wanted.has(s))),
                 created_at: now, expires_at: now + config.installTtlDays * DAY,
             };
-            q.insert.run(row);
-            return { install: view(q.byId.get(row.id)), token };
+            await q.insert.run(row);
+            return { install: view(await q.byId.get(row.id)), token };
         },
 
-        list(subject) { return q.mine.all(subject).map(view); },
+        async list(subject) { return (await q.mine.all(subject)).map(view); },
 
         /** Revoke one of `subject`'s installs. → true when it was active. */
-        revoke(subject, id) { return q.revoke.run(store.now(), String(id), subject).changes === 1; },
+        async revoke(subject, id) { return (await q.revoke.run(store.now(), String(id), subject)).changes === 1; },
 
         /**
          * Verify a presented token. → { install, subject, scopes } or throws 401 (malformed, unknown,
          * revoked, expired). Reads the row every time: revocation takes effect on the next request.
          */
-        verify(token) {
+        async verify(token) {
             if (!TOKEN_RE.test(String(token))) throw new ApiError(401, 'token.invalid', 'malformed extension token');
-            const row = q.byHash.get(hashToken(token));
+            const row = await q.byHash.get(hashToken(token));
             if (!row) throw new ApiError(401, 'token.invalid', 'unknown extension token');
             const now = store.now();
             if (row.revoked_at) throw new ApiError(401, 'token.revoked', 'this extension was disconnected; connect it again on openvibe.coupons');
             if (row.expires_at <= now) throw new ApiError(401, 'token.expired', 'this extension token expired; connect it again on openvibe.coupons');
-            q.touch.run(now, row.id, now - 60 * 1000);
+            await q.touch.run(now, row.id, now - 60 * 1000);
             return { install: row.id, subject: row.subject, scopes: JSON.parse(row.scopes) };
         },
     };

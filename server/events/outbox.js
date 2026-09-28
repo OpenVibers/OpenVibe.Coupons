@@ -29,7 +29,7 @@
  */
 const { createClient } = require('openvibe-sdk/core');
 const { createServiceTokenClient } = require('openvibe-sdk/auth');
-const { createEventsClient, createOutbox } = require('openvibe-sdk/events');
+const { createEventsClient, createPgOutbox } = require('openvibe-sdk/events');
 
 function createCouponsOutbox({ db, config, fetchImpl, now, log = console }) {
     const enabled = Boolean(config.events.url && config.oauth.clientSecret);
@@ -45,7 +45,9 @@ function createCouponsOutbox({ db, config, fetchImpl, now, log = console }) {
     }
     const events = createEventsClient(createClient(clientOpts), { source: 'coupons' });
     let lastError = null;
-    const outbox = createOutbox(db, {
+    // The PostgreSQL outbox: rows are written in the change's own transaction (enqueue(db, …) joins the ambient
+    // transaction); several processes relay one table safely (leases).
+    const outbox = createPgOutbox(db, {
         events,
         intervalMs: config.events.intervalMs,
         now,
@@ -55,20 +57,19 @@ function createCouponsOutbox({ db, config, fetchImpl, now, log = console }) {
             lastError = msg;
         },
     });
-    outbox.ensureSchema();
 
     /** Inside the caller's transaction. Returns the complete envelope (with its event_id). */
-    function emit(envelope, { traceparent } = {}) {
-        return outbox.enqueue(envelope, { traceparent });
+    async function emit(envelope, { traceparent } = {}) {
+        return await outbox.enqueue(db, envelope, { traceparent });
     }
 
     /**
      * coupons.moderation.action, inside the caller's transaction. actorSubject: the staff member (null
      * for a service); target: { type, id }, owner_subject always null. Never the code or its text.
      */
-    function moderationAction({ action, target, actorSubject, reason = null, details = {} }, { traceparent } = {}) {
+    async function moderationAction({ action, target, actorSubject, reason = null, details = {} }, { traceparent } = {}) {
         const t = { type: target.type, id: String(target.id).slice(0, 200), owner_subject: null };
-        return emit({
+        return await emit({
             event_type: 'coupons.moderation.action',
             actor: actorSubject ? { type: 'user', id: actorSubject } : { type: 'service', id: 'coupons' },
             subject: { type: 'moderation_action', id: `${t.type}:${t.id}`.slice(0, 200) },
@@ -85,7 +86,7 @@ function createCouponsOutbox({ db, config, fetchImpl, now, log = console }) {
         start() { if (enabled) outbox.start(); },
         stop: () => outbox.stop(),
         kick() { if (enabled) outbox.kick(); },
-        status: () => ({ enabled, pending: outbox.pending(), rejected: outbox.rejected(), last_error: lastError }),
+        status: async () => ({ enabled, pending: await outbox.pending(), rejected: await outbox.rejected(), last_error: lastError }),
     };
 }
 

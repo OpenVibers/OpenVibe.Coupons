@@ -32,7 +32,7 @@ Four rules shape everything here:
 
 ## Owns
 
-The nine charter tables live in Coupons' own SQLite (`COUPONS_DB_PATH`):
+The nine charter tables live in Coupons' own PostgreSQL database (`ov_coupons` on the host's data role, ADR-035; schema in [migrations/](migrations/)):
 
 | Charter table | What it is |
 |---|---|
@@ -296,9 +296,11 @@ What Coupons calls elsewhere, and with which grant, is under
 
 ## Depends on
 
-- **Packages** (all pinned by release tarball): `openvibe-publishing` v0.4.0 (seo gate, ssr,
-  index-hooks), `openvibe-contracts` v0.53.0, `openvibe-shared` v1.25.0 (chrome, app icon, footer,
-  legal, release, metrics, ready, seo), `openvibe-sdk` v0.12.0 (events outbox, service tokens,
+- **PostgreSQL 18 and Valkey 9** (OpenVibe.Host `roles/data/`, ADR-035): every read and write is async through
+  `openvibe-sdk/db`; Valkey holds the per-actor limit counters (optional: without `VALKEY_URL` they count per process).
+- **Packages** (all pinned by release tarball): `openvibe-publishing` v1.0.0 (seo gate, ssr,
+  index-hooks), `openvibe-contracts` v0.76.0, `openvibe-shared` v1.25.0 (Frame, app icon, footer,
+  legal, release, metrics, ready, seo), `openvibe-sdk` v0.20.0 (events outbox, service tokens,
   per-actor limits).
 - **OpenVibe.Network:**
   - SSO: an OAuth client `coupons` with redirect `https://openvibe.coupons/auth/callback`
@@ -423,10 +425,13 @@ fnm exec --using=22.22.1 npm run dev       # http://localhost:4850 (set OV_OAUTH
 
 Production deploys with `sudo ovhost deploy coupons` on the host (strategy `git-checkout`: fetch,
 fast-forward `/opt/openvibe.coupons`, install on a lockfile change, restart, wait for `/api/ready`).
-The unit is `openvibe-coupons.service` on `127.0.0.1:4850`, the env file `/etc/openvibe/coupons.env`.
+The unit is `openvibe-coupons.service` on `127.0.0.1:4850`, the env file `/etc/openvibe/coupons.env`. The database is
+`ov_coupons` on the host's data role (`sudo /opt/openvibe.host/roles/data/add-service.sh coupons` writes its settings); the
+release migrates it at boot. The one-time move from SQLite is `scripts/migrate-to-postgres.js` (openvibe-sdk
+`runSqliteMigration`, with a `--pglite` rehearsal mode), run while the service is stopped; the old
+`/var/lib/openvibe-coupons/coupons.db` stays read-only for 7 days as the rollback.
 Rollback: ovhost puts the previous sha back by itself when `/api/ready` does not answer 2xx after the
-restart; afterwards `sudo ovhost rollback coupons --to <sha>`. Nothing blocks a rollback: the schema
-code only adds tables and columns.
+restart; afterwards `sudo ovhost rollback coupons --to <sha>`. Migrations only add tables and columns.
 
 First install (done once; kept for a rebuild):
 

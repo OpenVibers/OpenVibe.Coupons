@@ -30,7 +30,7 @@ const DAY = 24 * 3600 * 1000;
         aliceToken = await t.connect(alice, { label: 'Firefox' });
         bobToken = await t.connect(bob, { label: 'Chrome', report: false });
         assert.match(aliceToken, /^cpx_[A-Za-z0-9_-]{43}$/);
-        const rows = t.ctx.store.db.prepare('SELECT * FROM extension_installs').all();
+        const rows = await t.ctx.store.db.prepare('SELECT * FROM extension_installs').all();
         assert.strictEqual(rows.length, 2);
         const dump = JSON.stringify(rows);
         assert.ok(!dump.includes(aliceToken) && !dump.includes(bobToken), 'the token itself is never stored');
@@ -43,10 +43,10 @@ const DAY = 24 * 3600 * 1000;
     await check('connect and revoke forms need the form token (CSRF)', async () => {
         const r = await t.get('/connect-extension', { as: alice, form: { label: 'x', scope_report: '1' } });
         assert.strictEqual(r.status, 403);
-        const install = t.ctx.installs.list(alice.subject)[0];
+        const install = (await t.ctx.installs.list(alice.subject))[0];
         const rv = await t.get(`/connect-extension/${install.id}/revoke`, { as: alice, form: { csrf: 'forged' } });
         assert.strictEqual(rv.status, 403);
-        assert.strictEqual(t.ctx.installs.list(alice.subject)[0].active, true);
+        assert.strictEqual((await t.ctx.installs.list(alice.subject))[0].active, true);
     });
 
     await check('scopes: lookup always; report only when granted; nothing else (no submit, no staff)', async () => {
@@ -64,7 +64,7 @@ const DAY = 24 * 3600 * 1000;
 
     await check('revocation takes effect on the very next request', async () => {
         assert.strictEqual((await t.get('/api/v1/merchants/resolve?host=paperlantern.store', { as: aliceToken })).status, 200);
-        const install = t.ctx.installs.list(alice.subject).find((i) => i.label === 'Firefox');
+        const install = (await t.ctx.installs.list(alice.subject)).find((i) => i.label === 'Firefox');
         const rv = await t.get(`/connect-extension/${install.id}/revoke`, { as: alice, form: { csrf: t.csrf(alice) } });
         assert.strictEqual(rv.status, 303);
         const r = await t.get('/api/v1/merchants/resolve?host=paperlantern.store', { as: aliceToken });
@@ -72,7 +72,7 @@ const DAY = 24 * 3600 * 1000;
         assert.strictEqual(r.json().code, 'token.revoked');
         assert.strictEqual((await t.get(`/api/v1/coupons/${code.id}/report`, { as: aliceToken, json: { outcome: 'failed' } })).status, 401);
         // Someone else cannot revoke bob's install.
-        const bobInstall = t.ctx.installs.list(bob.subject)[0];
+        const bobInstall = (await t.ctx.installs.list(bob.subject))[0];
         await t.get(`/connect-extension/${bobInstall.id}/revoke`, { as: alice, form: { csrf: t.csrf(alice) } });
         assert.strictEqual((await t.get('/api/v1/merchants/resolve?host=paperlantern.store', { as: bobToken })).status, 200);
     });

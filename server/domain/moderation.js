@@ -15,16 +15,16 @@ const { ApiError } = require('../http/errors');
 
 function createModeration({ store, merchants, coupons, outbox = null }) {
     return {
-        setMerchantStatus(m, status, { actor = 'system', traceparent } = {}) {
+        async setMerchantStatus(m, status, { actor = 'system', traceparent } = {}) {
             if (!['active', 'disabled'].includes(status)) throw new ApiError(422, 'merchant.bad_status', 'status must be active or disabled');
-            return store.tx(() => {
-                const after = merchants.setStatus(m, status);
-                const published = status === 'active' ? coupons.publishWaitingOn(after, { actor }) : [];
-                coupons.syncMerchant(after);
+            return await store.tx(async () => {
+                const after = await merchants.setStatus(m, status);
+                const published = status === 'active' ? await coupons.publishWaitingOn(after, { actor }) : [];
+                await coupons.syncMerchant(after);
                 // The moderation audit log (ADR-022): who approved, disabled or re-enabled the shop, never who proposed it.
                 if (outbox && m.status !== status && actor !== 'system') {
                     const action = status === 'disabled' ? 'merchant.disabled' : (m.status === 'pending' ? 'merchant.approved' : 'merchant.enabled');
-                    outbox.moderationAction({
+                    await outbox.moderationAction({
                         action, target: { type: 'merchant', id: m.id }, actorSubject: /^usr_/.test(String(actor)) ? actor : null,
                         details: { previous: m.status, status, ...(published.length ? { codes_published: published.length } : {}) },
                     }, { traceparent });

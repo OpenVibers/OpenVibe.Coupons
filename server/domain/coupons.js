@@ -176,6 +176,7 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
         active: db.prepare(`SELECT c.* FROM coupons c JOIN coupon_merchants m ON m.id = c.merchant_id WHERE c.merchant_id = @merchant AND ${ACTIVE_SQL}
                             ORDER BY CASE c.status WHEN 'reported_working' THEN 0 WHEN 'unknown' THEN 1 ELSE 2 END, COALESCE(c.last_worked_at, 0) DESC, c.created_at DESC LIMIT 200`),
         activeCount: db.prepare(`SELECT COUNT(*) AS n FROM coupons c JOIN coupon_merchants m ON m.id = c.merchant_id WHERE c.merchant_id = @merchant AND ${ACTIVE_SQL}`),
+        activeCounts: db.prepare(`SELECT c.merchant_id, COUNT(*) AS n FROM coupons c JOIN coupon_merchants m ON m.id = c.merchant_id WHERE c.merchant_id = ANY(@merchants) AND ${ACTIVE_SQL} GROUP BY c.merchant_id`),
         recentlyEnded: db.prepare(`SELECT c.* FROM coupons c JOIN coupon_merchants m ON m.id = c.merchant_id
                                    WHERE c.merchant_id = @merchant AND c.review_state = 'published' AND m.status = 'active'
                                      AND (c.status = 'expired' OR (c.expires_at IS NOT NULL AND c.expires_at <= @now)) AND c.status <> 'disabled'
@@ -189,16 +190,18 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
         pendingReview: db.prepare(`SELECT c.* FROM coupons c WHERE c.review_state = 'pending' AND c.status <> 'disabled' ORDER BY c.created_at LIMIT 200`),
         setReview: db.prepare("UPDATE coupons SET review_state = 'published', updated_at = ? WHERE id = ? AND review_state = 'pending'"),
         setExpiry: db.prepare('UPDATE coupons SET expires_at = ?, expires_precision = ?, expiry_basis = ?, updated_at = ? WHERE id = ?'),
+        // Each reporter's latest report counts once (DISTINCT ON: SQLite took the bare column from the MAX row).
         reportCounts: db.prepare(`SELECT outcome, COUNT(*) AS n FROM (
-                                      SELECT reporter_key, outcome, MAX(updated_at) AS t FROM coupon_validation_reports WHERE coupon_id = ? AND updated_at > ? GROUP BY reporter_key)
+                                      SELECT DISTINCT ON (reporter_key) reporter_key, outcome FROM coupon_validation_reports
+                                       WHERE coupon_id = ? AND updated_at > ? ORDER BY reporter_key, updated_at DESC) latest
                                   GROUP BY outcome`),
         byMerchantPending: db.prepare("SELECT id FROM coupons WHERE merchant_id = ? AND review_state = 'pending'"),
         ofMerchant: db.prepare('SELECT id FROM coupons WHERE merchant_id = ?'),
     };
 
-    const get = (id) => q.byId.get(String(id || ''));
+    const get = async (id) => await q.byId.get(String(id || ''));
 
-    function restrictionsOf(id) { return q.restrictions.all(id); }
+    async function restrictionsOf(id) { return await q.restrictions.all(id); }
 
     function restrictionsText(rows) {
         return rows.map((r) => {
@@ -210,30 +213,35 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
         }).join('\n');
     }
 
-    function sourceRefs(id) {
-        return q.sources.all(id).filter((s) => s.sources_item_id && !s.removed_at)
+    async function sourceRefs(id) {
+        return (await q.sources.all(id)).filter((s) => s.sources_item_id && !s.removed_at)
             .map((s) => ({ service: 'sources', type: 'item', id: s.sources_item_id, ...(Number.isInteger(s.sources_item_rev) ? { revision: s.sources_item_rev } : {}), ...(s.evidence_url ? { url: s.evidence_url } : {}), ...(s.retrieved_at ? { retrievedAt: s.retrieved_at } : {}) }));
     }
 
-    function activeCount(merchantId) { return q.activeCount.get({ merchant: merchantId, now: store.now() }).n; }
-
-    /** Send the Search documents of a code and its merchant (inside a transaction). */
-    function syncIndex(c, { traceparent } = {}) {
-        const m = merchants.byId(c.merchant_id);
-        publication.sendDocument(publication.couponDocument(c, m, { restrictionsText: restrictionsText(restrictionsOf(c.id)), sourceRefs: sourceRefs(c.id) }), { traceparent });
-        if (m) publication.sendDocument(publication.merchantDocument(m, activeCount(m.id)), { traceparent });
+    async function activeCount(merchantId) { return (await q.activeCount.get({ merchant: merchantId, now: store.now() })).n; }
+    /** merchant id → active coupons, for many merchants in one query (missing = 0). */
+    async function activeCounts(merchantIds) {
+        const rows = merchantIds.length ? await q.activeCounts.all({ merchants: merchantIds, now: store.now() }) : [];
+        return new Map(rows.map((r) => [r.merchant_id, r.n]));
     }
 
-    function syncMerchant(m, { traceparent } = {}) {
-        publication.sendDocument(publication.merchantDocument(m, activeCount(m.id)), { traceparent });
-        for (const { id } of q.ofMerchant.all(m.id)) {
-            const c = get(id);
-            publication.sendDocument(publication.couponDocument(c, m, { restrictionsText: restrictionsText(restrictionsOf(c.id)), sourceRefs: sourceRefs(c.id) }), { traceparent });
+    /** Send the Search documents of a code and its merchant (inside a transaction). */
+    async function syncIndex(c, { traceparent } = {}) {
+        const m = await merchants.byId(c.merchant_id);
+        await publication.sendDocument(publication.couponDocument(c, m, { restrictionsText: restrictionsText(await restrictionsOf(c.id)), sourceRefs: await sourceRefs(c.id) }), { traceparent });
+        if (m) await publication.sendDocument(publication.merchantDocument(m, await activeCount(m.id)), { traceparent });
+    }
+
+    async function syncMerchant(m, { traceparent } = {}) {
+        await publication.sendDocument(publication.merchantDocument(m, await activeCount(m.id)), { traceparent });
+        for (const { id } of await q.ofMerchant.all(m.id)) {
+            const c = await get(id);
+            await publication.sendDocument(publication.couponDocument(c, m, { restrictionsText: restrictionsText(await restrictionsOf(c.id)), sourceRefs: await sourceRefs(c.id) }), { traceparent });
         }
     }
 
-    function publiclyListed(c) {
-        const m = merchants.byId(c.merchant_id);
+    async function publiclyListed(c) {
+        const m = await merchants.byId(c.merchant_id);
         return Boolean(m && m.status === 'active' && confidence.isActive(c, store.now()));
     }
 
@@ -247,51 +255,51 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
      * change in coupon_status_history, emit events and Search documents.
      * forceStatus: 'disabled' | 'expired' | 'unknown' (re-enable) for staff/service changes.
      */
-    function recompute(id, { reason, actor = 'system', forceStatus = null, traceparent } = {}) {
-        const before = get(id);
+    async function recompute(id, { reason, actor = 'system', forceStatus = null, traceparent } = {}) {
+        const before = await get(id);
         if (!before) return null;
         const now = store.now();
         let base = before;
         if (forceStatus === 'disabled') base = { ...before, status: 'disabled' };
         else if (forceStatus === 'expired') base = { ...before, status: 'expired', expired_at: now };
         else if (forceStatus === 'unknown') base = { ...before, status: 'unknown', expired_at: null, disabled_at: null };
-        const reports = q.reportsFor.all(id, now - confidence.WINDOW_DAYS * DAY);
-        const ev = confidence.evaluate(base, reports, { merchantEvidence: Boolean(q.merchantEvidence.get(id)), now });
+        const reports = await q.reportsFor.all(id, now - confidence.WINDOW_DAYS * DAY);
+        const ev = confidence.evaluate(base, reports, { merchantEvidence: Boolean(await q.merchantEvidence.get(id)), now });
         const statusChanged = ev.status !== before.status;
         const confChanged = ev.confidence !== before.confidence;
         if (!statusChanged && !confChanged && !forceStatus) return before;
         let expiredAt = null;
         if (ev.status === 'expired') expiredAt = before.status === 'expired' && before.expired_at ? before.expired_at : (before.expires_at != null && before.expires_at <= now ? before.expires_at : now);
-        q.update.run({
+        await q.update.run({
             id, status: ev.status, confidence: ev.confidence, now,
             status_reason: statusChanged || forceStatus ? reason : before.status_reason,
             expired_at: expiredAt,
             disabled_at: ev.status === 'disabled' ? (before.disabled_at || now) : null,
         });
-        const after = get(id);
-        if (statusChanged || confChanged) q.history.run(id, before.status, after.status, before.confidence, after.confidence, reason, actor, now);
+        const after = await get(id);
+        if (statusChanged || confChanged) await q.history.run(id, before.status, after.status, before.confidence, after.confidence, reason, actor, now);
         if (statusChanged) {
             const type = after.status === 'expired' ? 'coupons.coupon.expired' : after.status === 'disabled' ? 'coupons.coupon.disabled' : 'coupons.coupon.updated';
-            publication.emit(type, { type: 'coupon', id }, lifecyclePayload(after, { previous_status: before.status, reason: publicReason(reason) }), { isPublic: publiclyListed(after) || publiclyListed(before), traceparent });
+            await publication.emit(type, { type: 'coupon', id }, lifecyclePayload(after, { previous_status: before.status, reason: publicReason(reason) }), { isPublic: await publiclyListed(after) || await publiclyListed(before), traceparent });
         }
         if (confChanged) {
-            publication.emit('coupons.confidence.changed', { type: 'coupon', id }, { merchant_id: after.merchant_id, from: before.confidence, to: after.confidence, status: after.status }, { traceparent });
+            await publication.emit('coupons.confidence.changed', { type: 'coupon', id }, { merchant_id: after.merchant_id, from: before.confidence, to: after.confidence, status: after.status }, { traceparent });
         }
-        syncIndex(after, { traceparent });
+        await syncIndex(after, { traceparent });
         return after;
     }
 
-    function addSource(couponId, merchant, { kind, evidence_url = null, sources_item_id = null, sources_item_rev = null, source_key = null, retrieved_at = null, ai_run_id = null, submitted_by = null }) {
-        q.sourceInsert.run({
-            coupon_id: couponId, kind, evidence_url, merchant_evidence: evidence_url && merchants.ownsUrl(merchant, evidence_url) ? 1 : 0,
+    async function addSource(couponId, merchant, { kind, evidence_url = null, sources_item_id = null, sources_item_rev = null, source_key = null, retrieved_at = null, ai_run_id = null, submitted_by = null }) {
+        await q.sourceInsert.run({
+            coupon_id: couponId, kind, evidence_url, merchant_evidence: evidence_url && await merchants.ownsUrl(merchant, evidence_url) ? 1 : 0,
             sources_item_id, sources_item_rev, source_key, retrieved_at, ai_run_id, submitted_by, now: store.now(),
         });
     }
 
-    function checkSubmissionRate(actorId, limits) {
+    async function checkSubmissionRate(actorId, limits) {
         const now = store.now();
-        if (q.submittedSince.get(actorId, now - 60 * 60 * 1000).n >= limits.submissionsPerHour
-            || q.submittedSince.get(actorId, now - DAY).n >= limits.submissionsPerDay) {
+        if ((await q.submittedSince.get(actorId, now - 60 * 60 * 1000)).n >= limits.submissionsPerHour
+            || (await q.submittedSince.get(actorId, now - DAY)).n >= limits.submissionsPerDay) {
             throw new ApiError(429, 'submission.rate_limited', 'too many submissions; try again later');
         }
     }
@@ -302,25 +310,25 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
      * target: { merchant } (resolved by the caller)
      * → { coupon, merchant, duplicate, created }
      */
-    function submit(who, merchant, input, { limits, traceparent } = {}) {
-        checkSubmissionRate(who.actor, limits);
-        return store.tx(() => {
-            const existing = q.byKey.get(merchant.id, input.code_key);
+    async function submit(who, merchant, input, { limits, traceparent } = {}) {
+        await checkSubmissionRate(who.actor, limits);
+        return await store.tx(async () => {
+            const existing = await q.byKey.get(merchant.id, input.code_key);
             if (existing) {
                 if (existing.status === 'disabled') throw new ApiError(409, 'coupon.disabled', 'this code was taken down and cannot be resubmitted');
                 if (existing.status === 'expired' || (existing.expires_at != null && existing.expires_at <= store.now())) {
                     throw new ApiError(409, 'coupon.expired', 'this code is recorded as expired');
                 }
-                if (!input.evidence_url || !q.sameEvidence.get(existing.id, input.evidence_url)) {
-                    addSource(existing.id, merchant, { kind: who.kind, evidence_url: input.evidence_url, ai_run_id: input.ai_run_id, submitted_by: who.actor });
-                    recompute(existing.id, { reason: 'evidence', actor: 'system', traceparent });
+                if (!input.evidence_url || !await q.sameEvidence.get(existing.id, input.evidence_url)) {
+                    await addSource(existing.id, merchant, { kind: who.kind, evidence_url: input.evidence_url, ai_run_id: input.ai_run_id, submitted_by: who.actor });
+                    await recompute(existing.id, { reason: 'evidence', actor: 'system', traceparent });
                 }
-                return { coupon: get(existing.id), merchant, duplicate: true, created: false };
+                return { coupon: await get(existing.id), merchant, duplicate: true, created: false };
             }
             const now = store.now();
             const id = `cpn_${ids.ulid(now)}`;
             const review = who.kind === 'ai' || merchant.status !== 'active' ? 'pending' : 'published';
-            q.insert.run({
+            await q.insert.run({
                 id, merchant_id: merchant.id, code: input.code, code_key: input.code_key, title: input.title, description: input.description,
                 review_state: review, origin: who.kind,
                 expires_at: input.expiry ? input.expiry.expires_at : null,
@@ -328,60 +336,60 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
                 expiry_basis: input.expiry ? (who.kind === 'staff' && input.expiry_basis === 'submitter' ? 'staff' : input.expiry_basis) : null,
                 created_by: who.actor, now,
             });
-            for (const r of input.restrictions) q.restrictionInsert.run({ coupon_id: id, kind: r.kind, value: r.value ?? null, amount_minor: r.amount_minor ?? null, currency: r.currency ?? null, now });
-            if (input.hint) q.hintInsert.run(merchant.id, id, input.hint, who.actor, now);
-            addSource(id, merchant, { kind: who.kind, evidence_url: input.evidence_url, ai_run_id: input.ai_run_id, submitted_by: who.actor });
-            q.history.run(id, null, 'unknown', null, null, 'created', who.actor, now);
-            const c = get(id);
-            publication.emit('coupons.coupon.created', { type: 'coupon', id }, lifecyclePayload(c, { origin: c.origin }), { isPublic: publiclyListed(c), traceparent });
-            syncIndex(c, { traceparent });
+            for (const r of input.restrictions) await q.restrictionInsert.run({ coupon_id: id, kind: r.kind, value: r.value ?? null, amount_minor: r.amount_minor ?? null, currency: r.currency ?? null, now });
+            if (input.hint) await q.hintInsert.run(merchant.id, id, input.hint, who.actor, now);
+            await addSource(id, merchant, { kind: who.kind, evidence_url: input.evidence_url, ai_run_id: input.ai_run_id, submitted_by: who.actor });
+            await q.history.run(id, null, 'unknown', null, null, 'created', who.actor, now);
+            const c = await get(id);
+            await publication.emit('coupons.coupon.created', { type: 'coupon', id }, lifecyclePayload(c, { origin: c.origin }), { isPublic: await publiclyListed(c), traceparent });
+            await syncIndex(c, { traceparent });
             return { coupon: c, merchant, duplicate: false, created: true };
         });
     }
 
     /** Import one OpenVibe.Sources item as a code (inside the importer's transaction). */
-    function importFromSource(merchant, item, parsed, { autoPublish }) {
-        const existing = q.byKey.get(merchant.id, parsed.code_key);
+    async function importFromSource(merchant, item, parsed, { autoPublish }) {
+        const existing = await q.byKey.get(merchant.id, parsed.code_key);
         const src = {
             kind: 'source', evidence_url: item.canonical_url || null, sources_item_id: item.id, sources_item_rev: item.revision,
             source_key: item.source_key, retrieved_at: Date.parse(item.provenance && item.provenance.retrieved_at) || null, submitted_by: 'svc:sources',
         };
         if (existing) {
-            const known = q.sources.all(existing.id).find((s) => s.sources_item_id === item.id);
-            if (known) db.prepare('UPDATE coupon_sources SET sources_item_rev = ?, retrieved_at = ?, removed_at = NULL, removed_reason = NULL WHERE id = ?').run(item.revision, src.retrieved_at, known.id);
-            else addSource(existing.id, merchant, src);
+            const known = (await q.sources.all(existing.id)).find((s) => s.sources_item_id === item.id);
+            if (known) await db.prepare('UPDATE coupon_sources SET sources_item_rev = ?, retrieved_at = ?, removed_at = NULL, removed_reason = NULL WHERE id = ?').run(item.revision, src.retrieved_at, known.id);
+            else await addSource(existing.id, merchant, src);
             if (existing.expires_at == null && parsed.expiry && existing.status !== 'expired') {
-                q.setExpiry.run(parsed.expiry.expires_at, parsed.expiry.expires_precision, 'source', store.now(), existing.id);
+                await q.setExpiry.run(parsed.expiry.expires_at, parsed.expiry.expires_precision, 'source', store.now(), existing.id);
             }
-            recompute(existing.id, { reason: 'evidence', actor: 'svc:sources' });
-            return { coupon: get(existing.id), created: false };
+            await recompute(existing.id, { reason: 'evidence', actor: 'svc:sources' });
+            return { coupon: await get(existing.id), created: false };
         }
         const now = store.now();
         const id = `cpn_${ids.ulid(now)}`;
-        q.insert.run({
+        await q.insert.run({
             id, merchant_id: merchant.id, code: parsed.code, code_key: parsed.code_key, title: parsed.title, description: parsed.description,
             review_state: autoPublish && merchant.status === 'active' ? 'published' : 'pending', origin: 'source',
             expires_at: parsed.expiry ? parsed.expiry.expires_at : null,
             expires_precision: parsed.expiry ? parsed.expiry.expires_precision : null,
             expiry_basis: parsed.expiry ? 'source' : null, created_by: 'svc:sources', now,
         });
-        for (const r of parsed.restrictions) q.restrictionInsert.run({ coupon_id: id, kind: r.kind, value: r.value ?? null, amount_minor: r.amount_minor ?? null, currency: r.currency ?? null, now });
-        addSource(id, merchant, src);
-        q.history.run(id, null, 'unknown', null, null, 'created', 'svc:sources', now);
-        const c = get(id);
-        publication.emit('coupons.coupon.created', { type: 'coupon', id }, lifecyclePayload(c, { origin: 'source' }), { isPublic: publiclyListed(c) });
-        syncIndex(c);
+        for (const r of parsed.restrictions) await q.restrictionInsert.run({ coupon_id: id, kind: r.kind, value: r.value ?? null, amount_minor: r.amount_minor ?? null, currency: r.currency ?? null, now });
+        await addSource(id, merchant, src);
+        await q.history.run(id, null, 'unknown', null, null, 'created', 'svc:sources', now);
+        const c = await get(id);
+        await publication.emit('coupons.coupon.created', { type: 'coupon', id }, lifecyclePayload(c, { origin: 'source' }), { isPublic: await publiclyListed(c) });
+        await syncIndex(c);
         return { coupon: c, created: true };
     }
 
     /** A Sources item was removed: its evidence is withdrawn; a code with no other evidence is disabled. */
-    function withdrawSourceItem(itemId, reason) {
-        const rows = db.prepare('SELECT * FROM coupon_sources WHERE sources_item_id = ? AND removed_at IS NULL').all(itemId);
+    async function withdrawSourceItem(itemId, reason) {
+        const rows = await db.prepare('SELECT * FROM coupon_sources WHERE sources_item_id = ? AND removed_at IS NULL').all(itemId);
         for (const s of rows) {
-            db.prepare('UPDATE coupon_sources SET removed_at = ?, removed_reason = ? WHERE id = ?').run(store.now(), String(reason || 'removed at the source').slice(0, 300), s.id);
-            const remaining = db.prepare('SELECT COUNT(*) AS n FROM coupon_sources WHERE coupon_id = ? AND removed_at IS NULL').get(s.coupon_id).n;
-            if (!remaining) recompute(s.coupon_id, { reason: 'source_removed', actor: 'svc:sources', forceStatus: 'disabled' });
-            else recompute(s.coupon_id, { reason: 'evidence', actor: 'svc:sources' });
+            await db.prepare('UPDATE coupon_sources SET removed_at = ?, removed_reason = ? WHERE id = ?').run(store.now(), String(reason || 'removed at the source').slice(0, 300), s.id);
+            const remaining = (await db.prepare('SELECT COUNT(*) AS n FROM coupon_sources WHERE coupon_id = ? AND removed_at IS NULL').get(s.coupon_id)).n;
+            if (!remaining) await recompute(s.coupon_id, { reason: 'source_removed', actor: 'svc:sources', forceStatus: 'disabled' });
+            else await recompute(s.coupon_id, { reason: 'evidence', actor: 'svc:sources' });
         }
         return rows.length;
     }
@@ -390,93 +398,93 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
      * Staff/service status change: 'disabled' | 'expired' | 'active' (re-enable: recomputed from
      * reports and time). reported_working / reported_failed cannot be set by anyone.
      */
-    function setStatus(c, target, { actor, note = '', traceparent } = {}) {
+    async function setStatus(c, target, { actor, note = '', traceparent } = {}) {
         const why = `${actor.startsWith('svc:') ? `service:${actor.slice(4)}` : 'staff'}${note ? `:${text(note, 200)}` : ''}`;
         const force = { disabled: 'disabled', expired: 'expired', active: 'unknown' }[target];
         if (!force) throw new ApiError(422, 'coupon.status_not_settable', 'status can be set to disabled, expired or active only; working/failed come from people\'s reports');
         if (target === 'expired' && c.status === 'disabled') throw new ApiError(409, 'coupon.disabled', 'enable the code before marking it expired');
         if (target === 'active' && c.expires_at != null && c.expires_at <= store.now()) throw new ApiError(409, 'coupon.expiry_passed', 'its known expiry has passed; change the expiry first');
-        return store.tx(() => {
-            const after = recompute(c.id, { reason: why, actor, forceStatus: force, traceparent });
+        return await store.tx(async () => {
+            const after = await recompute(c.id, { reason: why, actor, forceStatus: force, traceparent });
             // Staff or a staff-capable service acting on someone else's code: the moderation audit log (ADR-022).
-            if (after && after.status !== c.status && actor !== c.created_by) moderated(`coupon.${target === 'active' ? 'enabled' : target}`, c, actor, { reason: note ? text(note, 200) : null, details: { previous: c.status, status: after.status }, traceparent });
+            if (after && after.status !== c.status && actor !== c.created_by) await moderated(`coupon.${target === 'active' ? 'enabled' : target}`, c, actor, { reason: note ? text(note, 200) : null, details: { previous: c.status, status: after.status }, traceparent });
             return after;
         });
     }
 
     /** coupons.moderation.action for a staff or service action (never the submitter; see events/outbox.js). */
-    function moderated(action, c, actor, { reason = null, details = {}, traceparent } = {}) {
+    async function moderated(action, c, actor, { reason = null, details = {}, traceparent } = {}) {
         if (!outbox) return null;
         const person = /^usr_/.test(String(actor || '')) ? actor : null;
-        return outbox.moderationAction({ action, target: { type: 'coupon', id: c.id }, actorSubject: person, reason, details: { merchant_id: c.merchant_id, origin: c.origin, ...details } }, { traceparent });
+        return await outbox.moderationAction({ action, target: { type: 'coupon', id: c.id }, actorSubject: person, reason, details: { merchant_id: c.merchant_id, origin: c.origin, ...details } }, { traceparent });
     }
 
     /** Staff: publish a code that waits for review. */
-    function approve(c, { actor, audit = true, traceparent } = {}) {
-        return store.tx(() => {
-            if (q.setReview.run(store.now(), c.id).changes !== 1) return get(c.id);
-            const after = get(c.id);
-            q.history.run(c.id, c.status, after.status, c.confidence, after.confidence, 'staff:approved', actor, store.now());
-            if (audit && actor !== c.created_by) moderated('coupon.approved', c, actor, { traceparent });
-            publication.emit('coupons.coupon.updated', { type: 'coupon', id: c.id }, lifecyclePayload(after, { previous_status: c.status, reason: 'approved' }), { isPublic: publiclyListed(after) });
-            syncIndex(after);
+    async function approve(c, { actor, audit = true, traceparent } = {}) {
+        return await store.tx(async () => {
+            if ((await q.setReview.run(store.now(), c.id)).changes !== 1) return await get(c.id);
+            const after = await get(c.id);
+            await q.history.run(c.id, c.status, after.status, c.confidence, after.confidence, 'staff:approved', actor, store.now());
+            if (audit && actor !== c.created_by) await moderated('coupon.approved', c, actor, { traceparent });
+            await publication.emit('coupons.coupon.updated', { type: 'coupon', id: c.id }, lifecyclePayload(after, { previous_status: c.status, reason: 'approved' }), { isPublic: await publiclyListed(after) });
+            await syncIndex(after);
             return after;
         });
     }
 
     /** Staff: set or clear a code's expiry (clear = back to unknown). */
-    function setExpiry(c, value, { actor }) {
+    async function setExpiry(c, value, { actor }) {
         const expiry = value ? parseExpiry(value, store.now()) : null;
-        return store.tx(() => {
-            q.setExpiry.run(expiry ? expiry.expires_at : null, expiry ? expiry.expires_precision : null, expiry ? 'staff' : null, store.now(), c.id);
-            const updated = get(c.id);
-            publication.emit('coupons.coupon.updated', { type: 'coupon', id: c.id }, lifecyclePayload(updated, { reason: 'expiry_changed' }), { isPublic: publiclyListed(updated) });
-            recompute(c.id, { reason: 'staff:expiry', actor });
-            syncIndex(get(c.id));
-            return get(c.id);
+        return await store.tx(async () => {
+            await q.setExpiry.run(expiry ? expiry.expires_at : null, expiry ? expiry.expires_precision : null, expiry ? 'staff' : null, store.now(), c.id);
+            const updated = await get(c.id);
+            await publication.emit('coupons.coupon.updated', { type: 'coupon', id: c.id }, lifecyclePayload(updated, { reason: 'expiry_changed' }), { isPublic: await publiclyListed(updated) });
+            await recompute(c.id, { reason: 'staff:expiry', actor });
+            await syncIndex(await get(c.id));
+            return await get(c.id);
         });
     }
 
-    function addMerchantHint(m, hint, { actor }) {
+    async function addMerchantHint(m, hint, { actor }) {
         const t = text(hint, 300);
         if (!t) throw new ApiError(422, 'hint.empty', 'hint text is required');
-        q.hintInsert.run(m.id, null, t, actor, store.now());
+        await q.hintInsert.run(m.id, null, t, actor, store.now());
     }
 
     /**
      * The sweep: record expiries that have passed and let old reports decay. Idempotent.
      * → { expired: [ids], changed: [ids] }
      */
-    function sweep() {
+    async function sweep() {
         const now = store.now();
         const expired = [];
         const changed = [];
-        for (const { id } of q.dueExpiry.all(now)) {
-            const after = store.tx(() => recompute(id, { reason: 'expiry', actor: 'system' }));
+        for (const { id } of await q.dueExpiry.all(now)) {
+            const after = await store.tx(async () => await recompute(id, { reason: 'expiry', actor: 'system' }));
             if (after && after.status === 'expired') expired.push(id);
         }
-        for (const { id } of q.decaying.all(now - (confidence.WINDOW_DAYS + 1) * DAY)) {
-            const before = get(id);
-            const after = store.tx(() => recompute(id, { reason: 'decay', actor: 'system' }));
+        for (const { id } of await q.decaying.all(now - (confidence.WINDOW_DAYS + 1) * DAY)) {
+            const before = await get(id);
+            const after = await store.tx(async () => await recompute(id, { reason: 'decay', actor: 'system' }));
             if (after && before && (after.status !== before.status || after.confidence !== before.confidence)) changed.push(id);
         }
         return { expired, changed };
     }
 
     /** Counted reports in the window: { worked, failed } (aggregates only, never who). */
-    function reportCounts(id) {
+    async function reportCounts(id) {
         const out = { worked: 0, failed: 0 };
-        for (const r of q.reportCounts.all(id, store.now() - confidence.WINDOW_DAYS * DAY)) out[r.outcome] = r.n;
+        for (const r of await q.reportCounts.all(id, store.now() - confidence.WINDOW_DAYS * DAY)) out[r.outcome] = r.n;
         return out;
     }
 
     /**
      * The public view of a code. Never includes who submitted or reported it.
      */
-    function view(c, { merchant = null } = {}) {
+    async function view(c, { merchant = null } = {}) {
         const now = store.now();
-        const m = merchant || merchants.byId(c.merchant_id);
-        const sources = q.sources.all(c.id).filter((s) => !s.removed_at);
+        const m = merchant || await merchants.byId(c.merchant_id);
+        const sources = (await q.sources.all(c.id)).filter((s) => !s.removed_at);
         const iso = (t) => (t == null ? null : new Date(t).toISOString());
         // Report times are published to the hour: enough for "last report 3 hours ago", too coarse
         // to tie a report to the moment someone made it.
@@ -490,14 +498,14 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
             status: c.status,
             active: Boolean(m && m.status === 'active' && confidence.isActive(c, now)),
             confidence: c.confidence,
-            reports: { ...reportCounts(c.id), window_days: confidence.WINDOW_DAYS, last_report_at: hour(c.last_report_at), last_worked_at: hour(c.last_worked_at), last_failed_at: hour(c.last_failed_at) },
+            reports: { ...await reportCounts(c.id), window_days: confidence.WINDOW_DAYS, last_report_at: hour(c.last_report_at), last_worked_at: hour(c.last_worked_at), last_failed_at: hour(c.last_failed_at) },
             expiry: c.expires_at == null
                 ? { known: false, expires_at: null, precision: null, basis: null }
                 : { known: true, expires_at: iso(c.expires_at), precision: c.expires_precision, basis: c.expiry_basis },
-            restrictions: restrictionsOf(c.id).map((r) => (r.kind === 'min_spend'
+            restrictions: (await restrictionsOf(c.id)).map((r) => (r.kind === 'min_spend'
                 ? { kind: r.kind, amount: formatMinor(r.amount_minor, r.currency), amount_minor: r.amount_minor, currency: r.currency }
                 : r.kind === 'new_customers_only' ? { kind: r.kind } : { kind: r.kind, value: r.value })),
-            hints: m ? q.hints.all(m.id, c.id).map((h) => ({ text: h.text, scope: h.coupon_id ? 'code' : 'merchant' })) : [],
+            hints: m ? (await q.hints.all(m.id, c.id)).map((h) => ({ text: h.text, scope: h.coupon_id ? 'code' : 'merchant' })) : [],
             evidence: sources.map((s) => ({
                 kind: s.kind, url: s.evidence_url, merchant_page: Boolean(s.merchant_evidence),
                 ...(s.sources_item_id ? { sources_item: s.sources_item_id, retrieved_at: iso(s.retrieved_at) } : {}),
@@ -513,24 +521,24 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
     return {
         ACTIVE_SQL, parseSubmission, parseExpiry, parseRestrictions, formatMinor, restrictionsText,
         get, submit, checkSubmissionRate, importFromSource, withdrawSourceItem, recompute, setStatus, approve, setExpiry, addMerchantHint, sweep, view,
-        restrictionsOf, reportCounts, activeCount, syncIndex, syncMerchant,
-        history: (id) => q.historyFor.all(id),
-        active: (merchantId) => q.active.all({ merchant: merchantId, now: store.now() }),
-        recentlyEnded: (merchantId) => q.recentlyEnded.all({ merchant: merchantId, now: store.now() }),
-        recentActive: (limit = 30) => q.recentActive.all({ now: store.now(), limit }),
-        allActive: () => q.allActive.all({ now: store.now() }),
-        pendingReview: () => q.pendingReview.all(),
-        pendingOfMerchant: (merchantId) => q.byMerchantPending.all(merchantId).map((r) => r.id),
+        restrictionsOf, reportCounts, activeCount, activeCounts, syncIndex, syncMerchant,
+        history: async (id) => await q.historyFor.all(id),
+        active: async (merchantId) => await q.active.all({ merchant: merchantId, now: store.now() }),
+        recentlyEnded: async (merchantId) => await q.recentlyEnded.all({ merchant: merchantId, now: store.now() }),
+        recentActive: async (limit = 30) => await q.recentActive.all({ now: store.now(), limit }),
+        allActive: async () => await q.allActive.all({ now: store.now() }),
+        pendingReview: async () => await q.pendingReview.all(),
+        pendingOfMerchant: async (merchantId) => (await q.byMerchantPending.all(merchantId)).map((r) => r.id),
         /** Publish the codes that waited only because their merchant was pending (not AI or source codes). */
-        publishWaitingOn(merchant, { actor }) {
+        async publishWaitingOn(merchant, { actor }) {
             const out = [];
-            for (const id of q.byMerchantPending.all(merchant.id).map((r) => r.id)) {
-                const c = get(id);
-                if (c.origin === 'member' || c.origin === 'staff') out.push(approve(c, { actor, audit: false }));  // the shop's approval is the audited action
+            for (const id of (await q.byMerchantPending.all(merchant.id)).map((r) => r.id)) {
+                const c = await get(id);
+                if (c.origin === 'member' || c.origin === 'staff') out.push(await approve(c, { actor, audit: false }));  // the shop's approval is the audited action
             }
             return out;
         },
-        merchantHints: (merchantId) => q.merchantHints.all(merchantId),
+        merchantHints: async (merchantId) => await q.merchantHints.all(merchantId),
     };
 }
 

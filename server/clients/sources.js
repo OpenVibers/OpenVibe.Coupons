@@ -33,19 +33,20 @@ function createSourcesImporter({ store, config, merchants, coupons, fetchImpl = 
     }) : null;
     const q = {
         state: db.prepare('SELECT * FROM import_state WHERE key = ?'),
-        ensure: db.prepare('INSERT OR IGNORE INTO import_state (key, cursor) VALUES (?, 0)'),
+        ensure: db.prepare('INSERT INTO import_state (key, cursor) VALUES (?, 0) ON CONFLICT DO NOTHING'),
         cursor: db.prepare('UPDATE import_state SET cursor = ?, last_run_at = ?, last_ok_at = ?, last_error = NULL WHERE key = ?'),
         failed: db.prepare('UPDATE import_state SET last_run_at = ?, last_error = ? WHERE key = ?'),
         hold: db.prepare(`INSERT INTO coupon_import_holds (item_id, source_key, reason, detail, item, attempts, created_at, updated_at)
                           VALUES (@item_id, @source_key, @reason, @detail, @item, 1, @now, @now)
                           ON CONFLICT (item_id) DO UPDATE SET reason = excluded.reason, detail = excluded.detail, item = excluded.item,
-                                                               attempts = attempts + 1, updated_at = excluded.updated_at, resolved_at = NULL`),
+                                                               attempts = coupon_import_holds.attempts + 1, updated_at = excluded.updated_at, resolved_at = NULL`),
         resolve: db.prepare('UPDATE coupon_import_holds SET resolved_at = ?, updated_at = ? WHERE item_id = ? AND resolved_at IS NULL'),
         retryable: db.prepare("SELECT item FROM coupon_import_holds WHERE resolved_at IS NULL AND reason = 'no_merchant' ORDER BY updated_at LIMIT 100"),
         open: db.prepare('SELECT item_id, source_key, reason, detail, attempts, created_at, updated_at FROM coupon_import_holds WHERE resolved_at IS NULL ORDER BY updated_at DESC LIMIT 200'),
         openCount: db.prepare('SELECT COUNT(*) AS n FROM coupon_import_holds WHERE resolved_at IS NULL'),
     };
-    q.ensure.run(STATE_KEY);
+    let ensured = false;   // the state row, written on the first run (not at construction: the factory stays synchronous)
+    const ensureState = async () => { if (!ensured) { await q.ensure.run(STATE_KEY); ensured = true; } };
 
     function parseItem(item) {
         const f = item.fields && typeof item.fields === 'object' ? item.fields : {};
@@ -61,30 +62,30 @@ function createSourcesImporter({ store, config, merchants, coupons, fetchImpl = 
     }
 
     /** Handle one item inside a transaction. → 'imported' | 'updated' | 'withdrawn' | 'held:<reason>' */
-    function handle(item) {
+    async function handle(item) {
         const now = store.now();
-        const held = (reason, detail = null) => {
-            q.hold.run({ item_id: item.id, source_key: item.source_key || null, reason, detail: detail ? String(detail).slice(0, 300) : null, item: JSON.stringify(item), now });
+        const held = async (reason, detail = null) => {
+            await q.hold.run({ item_id: item.id, source_key: item.source_key || null, reason, detail: detail ? String(detail).slice(0, 300) : null, item: JSON.stringify(item), now });
             return `held:${reason}`;
         };
-        return store.tx(() => {
+        return await store.tx(async () => {
             if (item.removed) {
-                coupons.withdrawSourceItem(item.id, item.removed.reason);
-                q.resolve.run(now, now, item.id);
+                await coupons.withdrawSourceItem(item.id, item.removed.reason);
+                await q.resolve.run(now, now, item.id);
                 return 'withdrawn';
             }
-            if (config.sources.keys.length && !config.sources.keys.includes(item.source_key)) return held('not_selected', `source ${item.source_key} is not in COUPONS_SOURCES_KEYS`);
-            if (item.kind !== 'coupon') return held('not_a_coupon', `kind ${item.kind}`);
-            if (!item.fields || typeof item.fields.code !== 'string' || !item.fields.code.trim()) return held('no_code');
+            if (config.sources.keys.length && !config.sources.keys.includes(item.source_key)) return await held('not_selected', `source ${item.source_key} is not in COUPONS_SOURCES_KEYS`);
+            if (item.kind !== 'coupon') return await held('not_a_coupon', `kind ${item.kind}`);
+            if (!item.fields || typeof item.fields.code !== 'string' || !item.fields.code.trim()) return await held('no_code');
             let parsed;
             try { parsed = parseItem(item); } catch (err) {
-                return held(err.code === 'coupon.already_expired' ? 'expired' : 'invalid', err.message);
+                return await held(err.code === 'coupon.already_expired' ? 'expired' : 'invalid', err.message);
             }
             const at = hosts.hostOfUrl(item.canonical_url);
-            const found = at ? merchants.resolve(at.host, { path: at.path, includeStatuses: ['active', 'pending'] }) : null;
-            if (!found) return held('no_merchant', at ? at.host : 'no canonical URL');
-            const r = coupons.importFromSource(found.merchant, item, parsed, { autoPublish: config.sources.autoPublish });
-            q.resolve.run(now, now, item.id);
+            const found = at ? await merchants.resolve(at.host, { path: at.path, includeStatuses: ['active', 'pending'] }) : null;
+            if (!found) return await held('no_merchant', at ? at.host : 'no canonical URL');
+            const r = await coupons.importFromSource(found.merchant, item, parsed, { autoPublish: config.sources.autoPublish });
+            await q.resolve.run(now, now, item.id);
             return r.created ? 'imported' : 'updated';
         });
     }
@@ -100,23 +101,24 @@ function createSourcesImporter({ store, config, merchants, coupons, fetchImpl = 
 
     /** One import run. → { outcomes: {…}, cursor } or { error } */
     async function run({ maxPages = 10 } = {}) {
+        await ensureState();
         if (!enabled) return { disabled: true };
         const outcomes = {};
         const count = (o) => { outcomes[o] = (outcomes[o] || 0) + 1; };
-        let cursor = q.state.get(STATE_KEY).cursor;
+        let cursor = (await q.state.get(STATE_KEY)).cursor;
         try {
             for (let i = 0; i < maxPages; i++) {
                 const page = await getPage(cursor);
-                for (const item of page.items) count(handle(item));
+                for (const item of page.items) count(await handle(item));
                 cursor = page.next_after != null ? Number(page.next_after) : cursor;
-                q.cursor.run(cursor, store.now(), store.now(), STATE_KEY);
+                await q.cursor.run(cursor, store.now(), store.now(), STATE_KEY);
                 if (!page.more) break;
             }
-            for (const { item } of q.retryable.all()) count(`retry:${handle(JSON.parse(item))}`);
-            q.cursor.run(cursor, store.now(), store.now(), STATE_KEY);
+            for (const { item } of await q.retryable.all()) count(`retry:${await handle(JSON.parse(item))}`);
+            await q.cursor.run(cursor, store.now(), store.now(), STATE_KEY);
             return { outcomes, cursor };
         } catch (err) {
-            q.failed.run(store.now(), String(err.message).slice(0, 300), STATE_KEY);
+            await q.failed.run(store.now(), String(err.message).slice(0, 300), STATE_KEY);
             log.warn('[Coupons] Sources import failed (nothing changed):', err.message);
             return { error: err.message, outcomes, cursor };
         }
@@ -126,9 +128,9 @@ function createSourcesImporter({ store, config, merchants, coupons, fetchImpl = 
         enabled,
         run,
         handle,
-        state: () => q.state.get(STATE_KEY),
-        holds: () => q.open.all(),
-        holdCount: () => q.openCount.get().n,
+        state: async () => await q.state.get(STATE_KEY),
+        holds: async () => await q.open.all(),
+        holdCount: async () => (await q.openCount.get()).n,
     };
 }
 

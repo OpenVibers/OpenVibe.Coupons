@@ -14,7 +14,7 @@
 const { createReadiness } = require('openvibe-shared/ready');
 const { CHARTER_TABLES } = require('./db');
 
-function createCouponsReadiness({ store, auth, outbox, worker, importer, reports, config, release = null }) {
+function createCouponsReadiness({ store, auth, outbox, worker, importer, reports, config, valkey = null, release = null }) {
     const { db } = store;
     return createReadiness({
         service: 'coupons',
@@ -22,12 +22,16 @@ function createCouponsReadiness({ store, auth, outbox, worker, importer, reports
         checks: [
             {
                 name: 'db', required: true,
-                check: () => {
-                    const names = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((r) => r.name));
+                check: async () => {
+                    // A real round trip that names the store (postgresql / pglite), and the charter tables present.
+                    const r = await db.ready();
+                    if (!r.ok) return r.error;
+                    const names = new Set((await db.prepare("SELECT table_name AS name FROM information_schema.tables WHERE table_schema = current_schema()").all()).map((x) => x.name));
                     const missing = CHARTER_TABLES.filter((t) => !names.has(t));
-                    return missing.length ? `missing ${missing.join(', ')}` : true;
+                    return missing.length ? `missing ${missing.join(', ')} (migrations did not run)` : { ok: true, detail: r.detail };
                 },
             },
+            { name: 'valkey', required: false, check: async () => (valkey ? valkey.ready() : { skipped: 'VALKEY_URL not set: per-actor limits count in this process only' }) },
             {
                 name: 'network_jwks', required: false,
                 check: () => {
@@ -38,8 +42,8 @@ function createCouponsReadiness({ store, auth, outbox, worker, importer, reports
             },
             {
                 name: 'events_relay', required: false,
-                check: () => {
-                    const s = outbox.status();
+                check: async () => {
+                    const s = await outbox.status();
                     if (!s.enabled) return `relay off (EVENTS_URL or OV_OAUTH_CLIENT_SECRET unset); ${s.pending} events waiting`;
                     if (s.rejected) return `${s.rejected} events rejected by OpenVibe.Events`;
                     return { ok: true, detail: { pending: s.pending } };
@@ -58,11 +62,11 @@ function createCouponsReadiness({ store, auth, outbox, worker, importer, reports
             },
             {
                 name: 'sources_import', required: false,
-                check: () => {
+                check: async () => {
                     if (!importer.enabled) return 'off (OV_SOURCES_INTERNAL_URL or OV_OAUTH_CLIENT_SECRET unset)';
-                    const st = importer.state();
+                    const st = await importer.state();
                     if (st && st.last_error) return `last run failed: ${st.last_error}`;
-                    return { ok: true, detail: { cursor: st ? st.cursor : 0, held: importer.holdCount() } };
+                    return { ok: true, detail: { cursor: st ? st.cursor : 0, held: await importer.holdCount() } };
                 },
             },
             {

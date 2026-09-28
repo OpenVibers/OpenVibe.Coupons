@@ -24,7 +24,7 @@ const DAY = 24 * HOUR;
         assert.strictEqual((await t.get(`/api/v1/coupons/${code.id}/report`, { json: { outcome: 'worked' } })).status, 401);
         const cookieOnly = await t.get(`/api/v1/coupons/${code.id}/report`, { as: bob, json: { outcome: 'worked' } });
         assert.strictEqual(cookieOnly.status, 401, 'a signed-in cookie does not authenticate the API');
-        assert.strictEqual(t.ctx.store.db.prepare('SELECT COUNT(*) AS n FROM coupon_validation_reports').get().n, 0);
+        assert.strictEqual((await t.ctx.store.db.prepare('SELECT COUNT(*) AS n FROM coupon_validation_reports').get()).n, 0);
     });
 
     await check('input is validated: outcome worked|failed, reasons only for failed ones', async () => {
@@ -50,12 +50,12 @@ const DAY = 24 * HOUR;
         const tokenB = await t.connect(bob, { label: 'phone' });
         assert.strictEqual((await report(tokenA, code.id, { outcome: 'worked' })).json().deduplicated, true);
         assert.strictEqual((await report(tokenB, code.id, { outcome: 'worked' })).json().deduplicated, true);
-        assert.strictEqual(t.ctx.store.db.prepare('SELECT COUNT(*) AS n FROM coupon_validation_reports').get().n, 1);
+        assert.strictEqual((await t.ctx.store.db.prepare('SELECT COUNT(*) AS n FROM coupon_validation_reports').get()).n, 1);
         const c = await report(bob, code.id, { outcome: 'failed', reason: 'min_spend_not_met' });
         assert.strictEqual(c.json().corrected, true);
         assert.strictEqual(c.json().coupon.status, 'reported_failed');
-        assert.strictEqual(t.ctx.store.db.prepare('SELECT COUNT(*) AS n FROM coupon_validation_reports').get().n, 1);
-        assert.strictEqual(t.events('coupons.report.created').length, 1, 'one report, one event');
+        assert.strictEqual((await t.ctx.store.db.prepare('SELECT COUNT(*) AS n FROM coupon_validation_reports').get()).n, 1);
+        assert.strictEqual((await t.events('coupons.report.created')).length, 1, 'one report, one event');
     });
 
     await check('the submitter (or anyone who added evidence) cannot report on the code: one account cannot make its own code "working"', async () => {
@@ -70,8 +70,8 @@ const DAY = 24 * HOUR;
         const hank = t.network.addUser('hank');
         assert.strictEqual((await t.submit(hank, { host: 'bluekettle.shop', code: 'MADEUP50', title: 'Code MADEUP50', evidence_url: 'https://bluekettle.shop/deals' })).status, 200, 'duplicate: evidence added');
         assert.strictEqual((await report(hank, fake.id, { outcome: 'worked' })).status, 403, 'evidence submitters are submitters too');
-        assert.strictEqual(t.ctx.coupons.get(fake.id).status, 'unknown');
-        assert.strictEqual(t.ctx.store.db.prepare('SELECT COUNT(*) AS n FROM coupon_validation_reports WHERE coupon_id = ?').get(fake.id).n, 0);
+        assert.strictEqual((await t.ctx.coupons.get(fake.id)).status, 'unknown');
+        assert.strictEqual((await t.ctx.store.db.prepare('SELECT COUNT(*) AS n FROM coupon_validation_reports WHERE coupon_id = ?').get(fake.id)).n, 0);
     });
 
     await check('the next day is a new report, but only the latest per person counts', async () => {
@@ -95,11 +95,11 @@ const DAY = 24 * HOUR;
         assert.doesNotMatch(body, /reporter|install_id|cpi_/);
         const last = r.json().coupon.reports.last_report_at;
         assert.match(last, /T\d{2}:00:00\.000Z$/);
-        for (const e of t.events('coupons.report.created')) {
+        for (const e of await t.events('coupons.report.created')) {
             assert.deepStrictEqual(Object.keys(e.payload).sort(), ['channel', 'day', 'merchant_id', 'outcome', ...(e.payload.reason ? ['reason'] : [])].sort());
             assert.deepStrictEqual(e.actor, { type: 'service', id: 'coupons' });
         }
-        const keys = t.ctx.store.db.prepare('SELECT reporter_key FROM coupon_validation_reports').all().map((x) => x.reporter_key);
+        const keys = (await t.ctx.store.db.prepare('SELECT reporter_key FROM coupon_validation_reports').all()).map((x) => x.reporter_key);
         for (const k of keys) { assert.match(k, /^[0-9a-f]{64}$/); assert.ok(!k.includes('usr_')); }
     });
 
@@ -125,20 +125,20 @@ const DAY = 24 * HOUR;
         const fresh = await mk('DECAY1');
         const frank = t.network.addUser('frank');
         await report(frank, fresh.id, { outcome: 'worked' });
-        assert.strictEqual(t.ctx.coupons.get(fresh.id).status, 'reported_working');
+        assert.strictEqual((await t.ctx.coupons.get(fresh.id)).status, 'reported_working');
         t.clock.advance(6 * DAY);
-        t.ctx.worker.sweep();
-        assert.strictEqual(t.ctx.coupons.get(fresh.id).status, 'reported_working');
+        await t.ctx.worker.sweep();
+        assert.strictEqual((await t.ctx.coupons.get(fresh.id)).status, 'reported_working');
         t.clock.advance(2 * DAY);
-        t.ctx.worker.sweep();
-        assert.strictEqual(t.ctx.coupons.get(fresh.id).status, 'unknown');
-        assert.ok(t.ctx.coupons.get(fresh.id).confidence > 0.5);
+        await t.ctx.worker.sweep();
+        assert.strictEqual((await t.ctx.coupons.get(fresh.id)).status, 'unknown');
+        assert.ok((await t.ctx.coupons.get(fresh.id)).confidence > 0.5);
         t.clock.advance(23 * DAY);
-        t.ctx.worker.sweep();
-        assert.strictEqual(t.ctx.coupons.get(fresh.id).confidence, null);
-        const hist = t.ctx.coupons.history(fresh.id).map((h) => h.reason);
+        await t.ctx.worker.sweep();
+        assert.strictEqual((await t.ctx.coupons.get(fresh.id)).confidence, null);
+        const hist = (await t.ctx.coupons.history(fresh.id)).map((h) => h.reason);
         assert.ok(hist.includes('decay'));
-        assert.ok(t.events('coupons.confidence.changed').some((e) => e.subject.id === fresh.id && e.payload.to === null));
+        assert.ok((await t.events('coupons.confidence.changed')).some((e) => e.subject.id === fresh.id && e.payload.to === null));
     });
 
     await t.close();

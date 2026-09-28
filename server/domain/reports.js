@@ -58,44 +58,44 @@ function createReports({ store, config, coupons, merchants, publication }) {
     /**
      * → { accepted, deduplicated, corrected, coupon (public view) }
      */
-    function report(viewer, couponId, body, { channel = 'api', traceparent } = {}) {
+    async function report(viewer, couponId, body, { channel = 'api', traceparent } = {}) {
         const outcome = body && body.outcome;
         if (!OUTCOMES.includes(outcome)) throw new ApiError(422, 'report.bad_outcome', 'outcome must be "worked" or "failed"');
         const reason = body.reason == null || body.reason === '' ? null : body.reason;
         if (reason !== null && !REASONS.includes(reason)) throw new ApiError(422, 'report.bad_reason', `reason must be one of ${REASONS.join(', ')}`);
         if (outcome === 'worked' && reason) throw new ApiError(422, 'report.bad_reason', 'a reason applies to failed reports only');
         const who = reporterOf(viewer, channel);
-        const c = coupons.get(couponId);
+        const c = await coupons.get(couponId);
         if (!c) throw new ApiError(404, 'coupon.not_found', 'no such code');
-        const m = merchants.byId(c.merchant_id);
+        const m = await merchants.byId(c.merchant_id);
         const now = store.now();
         const isActive = m && m.status === 'active' && c.review_state === 'published' && c.status !== 'expired' && c.status !== 'disabled' && (c.expires_at == null || c.expires_at > now);
         if (!isActive) throw new ApiError(409, 'coupon.not_active', 'this code is not in active results (expired, disabled or not published)');
         // The submitter is not a reporter: otherwise one account could submit a made-up code and
         // make it "reported working" with its own report.
-        if (c.created_by === who.subject || q.submittedBy.get(c.id, who.subject)) {
+        if (c.created_by === who.subject || await q.submittedBy.get(c.id, who.subject)) {
             throw new ApiError(403, 'report.own_submission', 'you submitted this code; its status comes from other people\'s reports');
         }
 
         const key = reporterKey(who.subject);
         const day = new Date(now).toISOString().slice(0, 10);
-        return store.tx(() => {
-            const existing = q.find.get(c.id, key, day);
+        return await store.tx(async () => {
+            const existing = await q.find.get(c.id, key, day);
             if (existing && existing.outcome === outcome && existing.reason === reason) {
-                return { accepted: true, deduplicated: true, corrected: false, coupon: coupons.view(coupons.get(c.id), { merchant: m }) };
+                return { accepted: true, deduplicated: true, corrected: false, coupon: await coupons.view(await coupons.get(c.id), { merchant: m }) };
             }
             if (!existing) {
-                if (q.since.get(key, now - 60 * 60 * 1000).n >= config.limits.reportsPerHour || q.since.get(key, now - 24 * 60 * 60 * 1000).n >= config.limits.reportsPerDay) {
+                if ((await q.since.get(key, now - 60 * 60 * 1000)).n >= config.limits.reportsPerHour || (await q.since.get(key, now - 24 * 60 * 60 * 1000)).n >= config.limits.reportsPerDay) {
                     throw new ApiError(429, 'report.rate_limited', 'too many reports; try again later');
                 }
-                q.insert.run({ coupon_id: c.id, reporter_key: key, channel: who.channel, install_id: who.install, day, outcome, reason, now });
-                publication.emit('coupons.report.created', { type: 'coupon', id: c.id }, { merchant_id: c.merchant_id, outcome, ...(reason && /^[a-z][a-z0-9_]{0,39}$/.test(reason) ? { reason } : {}), channel: who.channel, day }, { traceparent });
+                await q.insert.run({ coupon_id: c.id, reporter_key: key, channel: who.channel, install_id: who.install, day, outcome, reason, now });
+                await publication.emit('coupons.report.created', { type: 'coupon', id: c.id }, { merchant_id: c.merchant_id, outcome, ...(reason && /^[a-z][a-z0-9_]{0,39}$/.test(reason) ? { reason } : {}), channel: who.channel, day }, { traceparent });
             } else {
-                q.correct.run({ id: existing.id, outcome, reason, channel: who.channel, install_id: who.install, now });
+                await q.correct.run({ id: existing.id, outcome, reason, channel: who.channel, install_id: who.install, now });
             }
-            q.stamp.run({ id: c.id, now, outcome });
-            coupons.recompute(c.id, { reason: 'report', actor: 'system', traceparent });
-            return { accepted: true, deduplicated: Boolean(existing), corrected: Boolean(existing), coupon: coupons.view(coupons.get(c.id), { merchant: m }) };
+            await q.stamp.run({ id: c.id, now, outcome });
+            await coupons.recompute(c.id, { reason: 'report', actor: 'system', traceparent });
+            return { accepted: true, deduplicated: Boolean(existing), corrected: Boolean(existing), coupon: await coupons.view(await coupons.get(c.id), { merchant: m }) };
         });
     }
 

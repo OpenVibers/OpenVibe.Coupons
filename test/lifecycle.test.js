@@ -46,7 +46,7 @@ const DAY = 24 * HOUR;
 
     await check('the unknown code stays unknown across time and sweeps while nobody reports', async () => {
         t.clock.advance(40 * DAY);
-        t.ctx.worker.sweep();
+        await t.ctx.worker.sweep();
         const c = (await t.get(`/api/v1/coupons/${unknownCode.id}`)).json().coupon;
         assert.strictEqual(c.status, 'unknown');
         assert.strictEqual(c.confidence, null);
@@ -153,21 +153,21 @@ const DAY = 24 * HOUR;
     });
 
     await check('the sweep records the expiry: status, history, coupons.coupon.expired, Search tombstone — once', async () => {
-        const before = t.events().length;
-        const r = t.ctx.worker.sweep();
+        const before = (await t.events()).length;
+        const r = await t.ctx.worker.sweep();
         assert.deepStrictEqual(r.expired, [dated.id]);
-        const row = t.ctx.coupons.get(dated.id);
+        const row = await t.ctx.coupons.get(dated.id);
         assert.strictEqual(row.status, 'expired');
         assert.strictEqual(row.expired_at, expiresAt, 'expired at the stated instant, not at sweep time');
-        const hist = t.ctx.coupons.history(dated.id);
+        const hist = await t.ctx.coupons.history(dated.id);
         assert.strictEqual(hist[0].to_status, 'expired');
         assert.strictEqual(hist[0].reason, 'expiry');
-        const evs = t.events().slice(before);
+        const evs = (await t.events()).slice(before);
         const mine = evs.filter((e) => e.subject.id === dated.id).map((e) => e.event_type).sort();
         assert.deepStrictEqual(mine, ['coupons.coupon.expired', 'coupons.index_document.deleted']);
         assert.ok(evs.some((e) => e.event_type === 'coupons.index_document.upserted' && e.subject.id === shop.id), 'the shop document is re-sent with one active code fewer');
-        assert.deepStrictEqual(t.ctx.worker.sweep().expired, [], 'idempotent');
-        assert.strictEqual(t.events().length, before + evs.length);
+        assert.deepStrictEqual((await t.ctx.worker.sweep()).expired, [], 'idempotent');
+        assert.strictEqual((await t.events()).length, before + evs.length);
     });
 
     await check('a date-only expiry means the end of that day in UTC, and the page says the time zone is not stated', async () => {
@@ -216,7 +216,7 @@ const DAY = 24 * HOUR;
     });
 
     await check('every event is a valid envelope from the service, and none names a person', async () => {
-        const all = t.events();
+        const all = await t.events();
         assert.ok(all.length > 10);
         for (const e of all) {
             const v = contracts.validate('events.event-envelope@1', e);

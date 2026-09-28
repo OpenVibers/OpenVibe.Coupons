@@ -91,20 +91,20 @@ function createPublication({ store, config, outbox }) {
     }
 
     /** Stamp and enqueue a Search document (inside the caller's transaction). */
-    function sendDocument(doc, { traceparent } = {}) {
-        if (doc.deleted && store.sequencer.current(doc.owner, doc.type, doc.id) == null) return null; // never indexed
-        const current = store.sequencer.current(doc.owner, doc.type, doc.id);
-        const stamped = store.sequencer.stamp(doc);
+    async function sendDocument(doc, { traceparent } = {}) {
+        if (doc.deleted && await store.sequencer.current(doc.owner, doc.type, doc.id) == null) return null; // never indexed
+        const current = await store.sequencer.current(doc.owner, doc.type, doc.id);
+        const stamped = await store.sequencer.stamp(store.db, doc);
         if (current === stamped.revision) return null; // the same document again: nothing to send
-        return outbox.emit(hooks.indexEvent({ document: stamped, now: store.now() }), { traceparent });
+        return await outbox.emit(hooks.indexEvent({ document: stamped, now: store.now() }), { traceparent });
     }
 
     /**
      * A product event (inside the caller's transaction). Public only while the code is publicly
      * listed; the actor is always the service and the payload never names a person.
      */
-    function emit(eventType, subject, payload, { isPublic = false, traceparent } = {}) {
-        return outbox.emit({
+    async function emit(eventType, subject, payload, { isPublic = false, traceparent } = {}) {
+        return await outbox.emit({
             event_type: eventType,
             actor: ACTOR,
             visibility: isPublic ? 'public' : 'internal',

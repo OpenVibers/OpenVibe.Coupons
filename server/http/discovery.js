@@ -25,12 +25,12 @@ function createDiscoveryRoutes({ config, store, merchants, coupons, publication 
     const abs = (p) => seo.canonicalUrl(config.baseUrl, p);
     const xml = (res, body, type = 'application/xml') => res.type(type).set('Cache-Control', 'public, max-age=300').send(body);
 
-    function activeEntries() {
+    async function activeEntries() {
         const byMerchant = new Map();
         const out = [];
-        for (const c of coupons.allActive()) {
+        for (const c of await coupons.allActive()) {
             let m = byMerchant.get(c.merchant_id);
-            if (!m) { m = merchants.byId(c.merchant_id); byMerchant.set(c.merchant_id, m); }
+            if (!m) { m = await merchants.byId(c.merchant_id); byMerchant.set(c.merchant_id, m); }
             out.push({ c, m, decision: publication.couponDecision(c, m) });
         }
         return out;
@@ -67,8 +67,8 @@ function createDiscoveryRoutes({ config, store, merchants, coupons, publication 
         }));
     });
 
-    router.get('/sitemap.xml', (_req, res) => {
-        const entries = activeEntries().filter((e) => e.decision.indexable);
+    router.get('/sitemap.xml', async (_req, res) => {
+        const entries = (await activeEntries()).filter((e) => e.decision.indexable);
         const newest = entries.length ? Math.max(...entries.map((e) => e.c.updated_at)) : null;
         xml(res, seo.sitemapIndex([
             { loc: abs('/sitemaps/merchants.xml'), ...(newest ? { lastmod: new Date(newest).toISOString() } : {}) },
@@ -76,13 +76,13 @@ function createDiscoveryRoutes({ config, store, merchants, coupons, publication 
         ]));
     });
 
-    router.get('/sitemaps/coupons.xml', (_req, res) => {
-        xml(res, seo.sitemap(activeEntries().map((e) => ({ loc: publication.couponUrl(e.c), lastmod: e.c.updated_at, decision: e.decision }))).files[0]);
+    router.get('/sitemaps/coupons.xml', async (_req, res) => {
+        xml(res, seo.sitemap((await activeEntries()).map((e) => ({ loc: publication.couponUrl(e.c), lastmod: e.c.updated_at, decision: e.decision }))).files[0]);
     });
 
-    router.get('/sitemaps/merchants.xml', (_req, res) => {
+    router.get('/sitemaps/merchants.xml', async (_req, res) => {
         const byMerchant = new Map();
-        for (const e of activeEntries()) {
+        for (const e of await activeEntries()) {
             const cur = byMerchant.get(e.m.id);
             if (!cur) byMerchant.set(e.m.id, { m: e.m, count: 1, lastmod: e.c.updated_at });
             else { cur.count++; cur.lastmod = Math.max(cur.lastmod, e.c.updated_at); }
@@ -104,23 +104,23 @@ function createDiscoveryRoutes({ config, store, merchants, coupons, publication 
             decision,
         }));
     }
-    const recent = () => activeEntries().slice(0, 50);
+    const recent = async () => (await activeEntries()).slice(0, 50);
     const channel = { title: 'OpenVibe.Coupons — new codes', link: abs('/'), description: 'Codes added to OpenVibe.Coupons, with their status and expiry.' };
 
-    router.get('/feed.xml', (_req, res) => xml(res, seo.rssFeed({ ...channel, feedUrl: abs('/feed.xml'), language: 'en' }, feedItems(recent())), 'application/rss+xml'));
-    router.get('/atom.xml', (_req, res) => {
-        const items = feedItems(recent());
+    router.get('/feed.xml', async (_req, res) => xml(res, seo.rssFeed({ ...channel, feedUrl: abs('/feed.xml'), language: 'en' }, feedItems(await recent())), 'application/rss+xml'));
+    router.get('/atom.xml', async (_req, res) => {
+        const items = feedItems(await recent());
         // Atom needs an <updated>; an empty feed has been empty since this process started, so that
         // instant is its last change (never the request time).
         xml(res, seo.atomFeed({ ...channel, feedUrl: abs('/atom.xml'), ...(items.length ? {} : { updated: bootTime }) }, items), 'application/atom+xml');
     });
-    router.get('/feed.json', (_req, res) => {
-        res.type('application/feed+json').set('Cache-Control', 'public, max-age=300').send(JSON.stringify(seo.jsonFeed({ ...channel, feedUrl: abs('/feed.json') }, feedItems(recent()))));
+    router.get('/feed.json', async (_req, res) => {
+        res.type('application/feed+json').set('Cache-Control', 'public, max-age=300').send(JSON.stringify(seo.jsonFeed({ ...channel, feedUrl: abs('/feed.json') }, feedItems(await recent()))));
     });
-    router.get('/m/:slug/feed.xml', (req, res, next) => {
-        const m = merchants.get(req.params.slug);
+    router.get('/m/:slug/feed.xml', async (req, res, next) => {
+        const m = await merchants.get(req.params.slug);
         if (!m || m.status !== 'active' || m.slug !== req.params.slug) return next();
-        const list = coupons.active(m.id).map((c) => ({ c, m, decision: publication.couponDecision(c, m) }));
+        const list = (await coupons.active(m.id)).map((c) => ({ c, m, decision: publication.couponDecision(c, m) }));
         xml(res, seo.rssFeed({ title: `${m.name} codes — OpenVibe.Coupons`, link: publication.merchantUrl(m), description: `Active codes for ${m.name}.`, feedUrl: abs(`/m/${m.slug}/feed.xml`), language: 'en' }, feedItems(list)), 'application/rss+xml');
     });
 

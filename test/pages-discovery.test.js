@@ -22,7 +22,7 @@ const { boot, check, done } = require('./helpers/boot');
         const r = await t.get('/submit', { as: alice, form: { csrf: t.csrf(alice), merchant: shop.slug, code: 'VEG5', title: 'Five pounds off veg boxes', expires: '', min_spend_amount: '30', min_spend_currency: 'gbp', regions: 'GB' } });
         assert.strictEqual(r.status, 201, r.text.slice(0, 300));
         assert.match(r.text, /your code is listed/);
-        codeId = t.ctx.store.db.prepare("SELECT id FROM coupons WHERE code = 'VEG5'").get().id;
+        codeId = (await t.ctx.store.db.prepare("SELECT id FROM coupons WHERE code = 'VEG5'").get()).id;
         const m = await t.get(`/m/${shop.slug}`);
         assert.match(m.text, /VEG5/);
         assert.match(m.text, /Minimum spend £30\.00/);

@@ -2,14 +2,20 @@
   "name": "openvibe-coupons",
   "version": "0.1.0",
   "private": true,
-  "description": "OpenVibe.Coupons — coupon codes with merchant and domain resolution, restrictions, honest expiry, deduplicated and rate-limited people's validity reports, and the public lookup API the OpenVibe browser helper uses. Server-rendered and useful without JavaScript.",
+  "description": "OpenVibe.Coupons \u2014 coupon codes with merchant and domain resolution, restrictions, honest expiry, deduplicated and rate-limited people's validity reports, and the public lookup API the OpenVibe browser helper uses. Server-rendered and useful without JavaScript.",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
     "dev": "NODE_ENV=development node server/index.js",
-    "test": "node test/run.js"
+    "test": "node test/run.js",
+    "test:pg": "COUPONS_TEST_STORE=pg node test/run.js"
   },
-  "keywords": ["openvibe", "coupons", "merchants", "browser-extension"],
+  "keywords": [
+    "openvibe",
+    "coupons",
+    "merchants",
+    "browser-extension"
+  ],
   "author": "OpenVibers",
   "license": "AGPL-3.0-only",
   "repository": "github:OpenVibers/OpenVibe.Coupons",
@@ -20,13 +26,16 @@
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.1.0",
-    "openvibe-contracts": "https://codeload.github.com/OpenVibers/OpenVibe.Contracts/tar.gz/refs/tags/v0.53.0",
-    "openvibe-publishing": "https://codeload.github.com/OpenVibers/OpenVibe.Publishing/tar.gz/refs/tags/v0.4.0",
-    "openvibe-sdk": "https://codeload.github.com/OpenVibers/OpenVibe.SDK/tar.gz/refs/tags/v0.12.0",
-    "openvibe-shared": "https://codeload.github.com/OpenVibers/OpenVibe.Shared/tar.gz/refs/tags/v1.25.0"
+    "iovalkey": "^0.4.0",
+    "openvibe-contracts": "https://codeload.github.com/OpenVibers/OpenVibe.Contracts/tar.gz/refs/tags/v0.76.0",
+    "openvibe-publishing": "https://codeload.github.com/OpenVibers/OpenVibe.Publishing/tar.gz/refs/tags/v1.0.0",
+    "openvibe-sdk": "https://codeload.github.com/OpenVibers/OpenVibe.SDK/tar.gz/refs/tags/v0.20.0",
+    "openvibe-shared": "https://codeload.github.com/OpenVibers/OpenVibe.Shared/tar.gz/refs/tags/v1.25.0",
+    "pg": "^8.23.0"
   },
   "devDependencies": {
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "@electric-sql/pglite": "^0.5.8"
   },
   "engines": {
     "node": ">=22.0.0"

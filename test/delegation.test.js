@@ -20,7 +20,7 @@ const MOD = 'mod:mod_01J8ZQ4Y7N3M2K1H0G9F8E7D6C';
     const caps = ['coupons.report.create', 'coupons.coupon.submit'];
     const appToken = (sub, actorType, extra) => t.network.signService({ sub, actorType, aud: ['openvibe.coupons'], cap: caps, extra });
     const report = (token, headers) => t.get(`/api/v1/coupons/${code.id}/report`, { as: token, headers, json: { outcome: 'failed', reason: 'invalid' } });
-    const reportsOf = (subject) => t.ctx.store.db.prepare('SELECT COUNT(*) AS n FROM coupon_validation_reports WHERE reporter_key = ?').get(t.ctx.reports.reporterKey(subject)).n;
+    const reportsOf = async (subject) => (await t.ctx.store.db.prepare('SELECT COUNT(*) AS n FROM coupon_validation_reports WHERE reporter_key = ?').get(t.ctx.reports.reporterKey(subject))).n;
 
     await check('an app token cannot act for someone else by naming them in X-OV-Subject', async () => {
         for (const [sub, type] of [[APP, 'app'], [MOD, 'mod']]) {
@@ -32,14 +32,14 @@ const MOD = 'mod:mod_01J8ZQ4Y7N3M2K1H0G9F8E7D6C';
         }
         const sub = await t.get('/api/v1/coupons/submit', { as: appToken(APP, 'app', {}), headers: { 'x-ov-subject': victim.subject }, json: { host: 'tinrobot.shop', code: 'FAKE99', title: 'Made up' } });
         assert.strictEqual(sub.status, 403);
-        assert.strictEqual(reportsOf(victim.subject), 0);
+        assert.strictEqual(await reportsOf(victim.subject), 0);
     });
 
     await check('an app token acts for its on_behalf_of person (header optional, must match)', async () => {
         const token = appToken(APP, 'app', { on_behalf_of: appUser.subject });
         assert.strictEqual((await report(token)).status, 201);
         assert.strictEqual((await report(token, { 'x-ov-subject': appUser.subject })).status, 200, 'same person, same day: deduplicated');
-        assert.strictEqual(reportsOf(appUser.subject), 1);
+        assert.strictEqual(await reportsOf(appUser.subject), 1);
     });
 
     await check('sandbox app tokens are refused', async () => {

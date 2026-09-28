@@ -57,21 +57,21 @@ const { actor, serviceItself } = require('../server/http/actor-limits');
 
     await check('reports have their own budget (30 a minute) for the person, whichever browser or form sends them', async () => {
         clock = Date.UTC(2026, 8, 27, 12, 5, 0);
-        const stored = () => t.ctx.store.db.prepare('SELECT COUNT(*) AS n, MAX(updated_at) AS at FROM coupon_validation_reports').get();
+        const stored = async () => await t.ctx.store.db.prepare('SELECT COUNT(*) AS n, MAX(updated_at) AS at FROM coupon_validation_reports').get();
         for (let i = 0; i < 30; i++) {
             const r = await t.get(`/api/v1/coupons/${code.id}/report`, { as: i % 2 ? laptop : phone, json: { outcome: i % 3 ? 'worked' : 'failed', reason: i % 3 ? null : 'expired' } });
             assert.ok(r.status === 200 || r.status === 201, `report ${i + 1}: ${r.text}`);
         }
-        const before = JSON.stringify(stored());
+        const before = JSON.stringify(await stored());
         const r = await t.get(`/c/${code.id}/report`, { as: bob, form: { csrf: t.csrf(bob), outcome: 'failed', reason: 'expired' } });
         assert.deepStrictEqual([r.status, r.json().code, r.headers.get('retry-after')], [429, 'rate_limited', '60'], 'the site form shares the budget');
         assert.ok(r.json().detail.includes('coupons.report.create'), r.json().detail);
-        assert.strictEqual(JSON.stringify(stored()), before, 'nothing recorded');
+        assert.strictEqual(JSON.stringify(await stored()), before, 'nothing recorded');
         assert.strictEqual((await t.get(`/api/v1/coupons/${code.id}/report`, { as: carols, json: { outcome: 'worked' } })).status, 201, 'another person still reports');
     });
 
     await check('revoking a browser helper is never limited', async () => {
-        const installs = t.ctx.installs.list(bob.subject);
+        const installs = await t.ctx.installs.list(bob.subject);
         assert.ok(installs.length >= 2);
         for (let i = 0; i < 6; i++) {
             const r = await t.get(`/connect-extension/${installs[0].id}/revoke`, { as: bob, form: { csrf: t.csrf(bob) } });

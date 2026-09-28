@@ -3,8 +3,8 @@ Description=OpenVibe.Coupons — coupon codes with merchant matching, honest exp
 # Network (sign-in, JWKS, service tokens), Events (the outbox relay) and Sources (imports) should be
 # up first, but Coupons degrades gracefully without them: pages, lookups and feeds serve; sign-in,
 # events and imports wait (see /api/ready).
-After=network.target
-Wants=openvibe-network.service
+After=network.target postgresql.service pgbouncer.service valkey-server.service
+Wants=openvibe-network.service postgresql.service pgbouncer.service valkey-server.service
 
 [Service]
 Type=simple

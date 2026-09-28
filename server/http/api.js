@@ -85,21 +85,21 @@ function createApi(ctx) {
 
     const publicCache = (res) => res.set('Cache-Control', 'public, max-age=60');
 
-    function merchantView(m) {
+    async function merchantView(m) {
         return {
             id: m.id,
             slug: m.slug,
             name: m.name,
             homepage_url: m.homepage_url,
             url: publication.merchantUrl(m),
-            domains: merchants.domains(m).map((d) => ({ host: d.host, include_subdomains: Boolean(d.include_subdomains), path_prefix: d.path_prefix || null })),
-            active_codes: coupons.activeCount(m.id),
-            hints: coupons.merchantHints(m.id).map((h) => h.text),
+            domains: (await merchants.domains(m)).map((d) => ({ host: d.host, include_subdomains: Boolean(d.include_subdomains), path_prefix: d.path_prefix || null })),
+            active_codes: await coupons.activeCount(m.id),
+            hints: (await coupons.merchantHints(m.id)).map((h) => h.text),
         };
     }
 
-    function activeMerchant(idOrSlug) {
-        const m = merchants.get(idOrSlug);
+    async function activeMerchant(idOrSlug) {
+        const m = await merchants.get(idOrSlug);
         if (!m || m.status !== 'active') throw new ApiError(404, 'merchant.not_found', 'no such merchant');
         return m;
     }
@@ -117,9 +117,9 @@ function createApi(ctx) {
     // ── Lookup ──────────────────────────────────────────────
     router.options(['/merchants/resolve', '/merchants/:id/coupons'], lookupCors);
 
-    router.get('/merchants/resolve', lookupCors, lookupLimiter, guard(CAPABILITIES.MERCHANT_RESOLVE, { scope: SCOPES.LOOKUP }), reads, run((req, res) => {
+    router.get('/merchants/resolve', lookupCors, lookupLimiter, guard(CAPABILITIES.MERCHANT_RESOLVE, { scope: SCOPES.LOOKUP }), reads, run(async (req, res) => {
         if (typeof req.query.host !== 'string') throw new ApiError(400, 'host.required', 'pass ?host=<hostname>');
-        const found = merchants.resolve(req.query.host);
+        const found = await merchants.resolve(req.query.host);
         publicCache(res);
         if (!found) {
             const host = hosts.normalizeHost(req.query.host);
@@ -129,38 +129,38 @@ function createApi(ctx) {
             host: found.host,
             registrable_domain: found.registrable,
             matched_rule: { host: found.rule.host, include_subdomains: Boolean(found.rule.include_subdomains), path_prefix: found.rule.path_prefix || null },
-            merchant: merchantView(found.merchant),
+            merchant: await merchantView(found.merchant),
         };
     }));
 
-    router.get('/merchants/:id/coupons', lookupCors, lookupLimiter, guard(CAPABILITIES.COUPON_LOOKUP, { scope: SCOPES.LOOKUP }), reads, run((req, res) => {
-        const m = activeMerchant(req.params.id);
+    router.get('/merchants/:id/coupons', lookupCors, lookupLimiter, guard(CAPABILITIES.COUPON_LOOKUP, { scope: SCOPES.LOOKUP }), reads, run(async (req, res) => {
+        const m = await activeMerchant(req.params.id);
         publicCache(res);
-        return { merchant: merchantView(m), coupons: coupons.active(m.id).map((c) => coupons.view(c, { merchant: m })) };
+        return { merchant: await merchantView(m), coupons: await Promise.all((await coupons.active(m.id)).map(async (c) => await coupons.view(c, { merchant: m }))) };
     }));
 
-    router.get('/merchants/:id', lookupLimiter, guard(CAPABILITIES.COUPON_LOOKUP, { scope: SCOPES.LOOKUP }), reads, run((req, res) => {
-        const m = activeMerchant(req.params.id);
+    router.get('/merchants/:id', lookupLimiter, guard(CAPABILITIES.COUPON_LOOKUP, { scope: SCOPES.LOOKUP }), reads, run(async (req, res) => {
+        const m = await activeMerchant(req.params.id);
         publicCache(res);
-        return { merchant: merchantView(m) };
+        return { merchant: await merchantView(m) };
     }));
 
-    router.get('/coupons/:id', lookupLimiter, guard(CAPABILITIES.COUPON_LOOKUP, { scope: SCOPES.LOOKUP }), reads, run((req, res) => {
-        const c = coupons.get(req.params.id);
-        const m = c && merchants.byId(c.merchant_id);
+    router.get('/coupons/:id', lookupLimiter, guard(CAPABILITIES.COUPON_LOOKUP, { scope: SCOPES.LOOKUP }), reads, run(async (req, res) => {
+        const c = await coupons.get(req.params.id);
+        const m = c && await merchants.byId(c.merchant_id);
         if (!c || !m || m.status !== 'active' || c.review_state !== 'published' || c.status === 'disabled') throw new ApiError(404, 'coupon.not_found', 'no such code');
         publicCache(res);
-        return { coupon: coupons.view(c, { merchant: m }), merchant: merchantView(m) };
+        return { coupon: await coupons.view(c, { merchant: m }), merchant: await merchantView(m) };
     }));
 
     // ── Reports ─────────────────────────────────────────────
-    router.post('/coupons/:id/report', writeLimiter, jsonBody, guard(CAPABILITIES.REPORT_CREATE, { scope: SCOPES.REPORT }), actorLimits.budget('coupons.report.create'), run((req, res) => {
+    router.post('/coupons/:id/report', writeLimiter, jsonBody, guard(CAPABILITIES.REPORT_CREATE, { scope: SCOPES.REPORT }), actorLimits.budget('coupons.report.create'), run(async (req, res) => {
         noStore(res);
-        return reports.report(req.viewer, req.params.id, req.body || {}, { channel: 'api', traceparent: req.get('traceparent') });
+        return await reports.report(req.viewer, req.params.id, req.body || {}, { channel: 'api', traceparent: req.get('traceparent') });
     }, (out) => (out.deduplicated ? 200 : 201)));
 
     // ── Submissions ─────────────────────────────────────────
-    router.post('/coupons/submit', writeLimiter, jsonBody, guard(CAPABILITIES.COUPON_SUBMIT), actorLimits.submit, run((req, res) => {
+    router.post('/coupons/submit', writeLimiter, jsonBody, guard(CAPABILITIES.COUPON_SUBMIT), actorLimits.submit, run(async (req, res) => {
         noStore(res);
         const v = req.viewer;
         let who;
@@ -168,9 +168,9 @@ function createApi(ctx) {
         if (v.kind === 'service' && v.origin === 'ai') who = { actor: v.service, kind: 'ai', subject: null };
         else if (v.subject) who = { actor: v.subject, kind: v.kind === 'user' && v.staff ? 'staff' : 'member', subject: v.subject };
         else throw new ApiError(403, 'auth.person_required', 'a submission needs the person it is from (X-OV-Subject for services)');
-        const out = submitCode(who, req.body || {}, { traceparent: req.get('traceparent'), limits: v.kind === 'service' ? scaled(config.limits, 10) : config.limits });
+        const out = await submitCode(who, req.body || {}, { traceparent: req.get('traceparent'), limits: v.kind === 'service' ? scaled(config.limits, 10) : config.limits });
         return {
-            coupon: coupons.view(out.coupon, { merchant: out.merchant }),
+            coupon: await coupons.view(out.coupon, { merchant: out.merchant }),
             merchant: { id: out.merchant.id, slug: out.merchant.slug, name: out.merchant.name, status: out.merchant.status },
             duplicate: out.duplicate,
             review_state: out.coupon.review_state,
@@ -178,70 +178,70 @@ function createApi(ctx) {
     }, (out) => (out.duplicate ? 200 : 201)));
 
     // ── Staff and services ──────────────────────────────────
-    router.post('/coupons/:id/status', writeLimiter, jsonBody, guard(CAPABILITIES.STATUS_UPDATE), moderate, run((req, res) => {
+    router.post('/coupons/:id/status', writeLimiter, jsonBody, guard(CAPABILITIES.STATUS_UPDATE), moderate, run(async (req, res) => {
         noStore(res);
         const actor = requireStaffOrService(req);
-        const c = coupons.get(req.params.id);
+        const c = await coupons.get(req.params.id);
         if (!c) throw new ApiError(404, 'coupon.not_found', 'no such code');
         const body = req.body || {};
-        const after = coupons.setStatus(c, body.status, { actor, note: body.note, traceparent: req.get('traceparent') });
-        return { coupon: coupons.view(after) };
+        const after = await coupons.setStatus(c, body.status, { actor, note: body.note, traceparent: req.get('traceparent') });
+        return { coupon: await coupons.view(after) };
     }));
 
-    router.post('/merchants', writeLimiter, jsonBody, guard(CAPABILITIES.MERCHANT_MANAGE), moderate, run((req, res) => {
+    router.post('/merchants', writeLimiter, jsonBody, guard(CAPABILITIES.MERCHANT_MANAGE), moderate, run(async (req, res) => {
         noStore(res);
         const actor = requireStaffOrService(req);
         const body = req.body || {};
         const status = body.status === 'pending' ? 'pending' : 'active';
-        const m = merchants.create(body, { status, actor });
-        store().tx(() => coupons.syncMerchant(m));
-        return { merchant: { ...merchantView(m), status: m.status } };
+        const m = await merchants.create(body, { status, actor });
+        store().tx(async () => await coupons.syncMerchant(m));
+        return { merchant: { ...await merchantView(m), status: m.status } };
     }, 201));
 
-    router.post('/merchants/:id/domains', writeLimiter, jsonBody, guard(CAPABILITIES.MERCHANT_MANAGE), moderate, run((req, res) => {
+    router.post('/merchants/:id/domains', writeLimiter, jsonBody, guard(CAPABILITIES.MERCHANT_MANAGE), moderate, run(async (req, res) => {
         noStore(res);
         const actor = requireStaffOrService(req);
-        const m = merchants.get(req.params.id);
+        const m = await merchants.get(req.params.id);
         if (!m) throw new ApiError(404, 'merchant.not_found', 'no such merchant');
-        merchants.addDomain(m, req.body || {}, actor);
-        return { merchant: { ...merchantView(m), status: m.status } };
+        await merchants.addDomain(m, req.body || {}, actor);
+        return { merchant: { ...await merchantView(m), status: m.status } };
     }, 201));
 
-    router.post('/merchants/:id/status', writeLimiter, jsonBody, guard(CAPABILITIES.MERCHANT_MANAGE), moderate, run((req, res) => {
+    router.post('/merchants/:id/status', writeLimiter, jsonBody, guard(CAPABILITIES.MERCHANT_MANAGE), moderate, run(async (req, res) => {
         noStore(res);
         const actor = requireStaffOrService(req);
-        const m = merchants.get(req.params.id);
+        const m = await merchants.get(req.params.id);
         if (!m) throw new ApiError(404, 'merchant.not_found', 'no such merchant');
         const status = (req.body || {}).status;
         if (!['active', 'disabled'].includes(status)) throw new ApiError(422, 'merchant.bad_status', 'status must be active or disabled');
-        const after = ctx.moderation.setMerchantStatus(m, status, { actor, traceparent: req.get('traceparent') });
-        return { merchant: { ...merchantView(after), status: after.status } };
+        const after = await ctx.moderation.setMerchantStatus(m, status, { actor, traceparent: req.get('traceparent') });
+        return { merchant: { ...await merchantView(after), status: after.status } };
     }));
 
     // ── The shared submission path (API and the /submit form) ──
-    function submitCode(who, body, { traceparent, limits = config.limits } = {}) {
+    async function submitCode(who, body, { traceparent, limits = config.limits } = {}) {
         const input = coupons.parseSubmission(body, ctx.store.now());
         let merchant = null;
         if (body.merchant_id) {
-            merchant = merchants.get(String(body.merchant_id));
+            merchant = await merchants.get(String(body.merchant_id));
             if (!merchant) throw new ApiError(404, 'merchant.not_found', 'no such merchant');
         } else if (body.host || body.url) {
             const at = body.url ? hosts.hostOfUrl(body.url) : { host: hosts.normalizeHost(String(body.host)), path: null };
             if (!at) throw new ApiError(422, 'host.invalid', 'url must be an http(s) URL of a public site');
-            const any = merchants.resolve(at.host, { path: at.path, includeStatuses: ['active', 'pending', 'disabled'] });
+            const any = await merchants.resolve(at.host, { path: at.path, includeStatuses: ['active', 'pending', 'disabled'] });
             if (any) merchant = any.merchant;
             else {
-                coupons.checkSubmissionRate(who.actor, limits);
+                await coupons.checkSubmissionRate(who.actor, limits);
                 const reg = hosts.registrable(at.host);
                 if (!reg) throw new ApiError(422, 'host.invalid', `${at.host} is a public suffix, not a site`);
                 // A site no merchant covers yet: proposed as a PENDING merchant, invisible until staff approve it.
-                merchant = merchants.create({ name: reg, domains: [{ host: reg, include_subdomains: true }] }, { status: 'pending', actor: who.actor });
+                merchant = await merchants.create({ name: reg, domains: [{ host: reg, include_subdomains: true }] }, { status: 'pending', actor: who.actor });
             }
         } else {
             throw new ApiError(422, 'merchant.required', 'name the merchant: merchant_id, host or url');
         }
         if (merchant.status === 'disabled') throw new ApiError(409, 'merchant.disabled', 'this merchant was taken down');
-        return coupons.submit(who, merchant, input, { limits, traceparent });
+        return await coupons.submit(who, merchant, input, { limits, traceparent });
     }
 
     const store = () => ctx.store;

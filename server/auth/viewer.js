@@ -81,12 +81,12 @@ function createViewerResolver({ auth, config, installs }) {
         if (!header.startsWith('Bearer ')) throw new ApiError(401, 'auth.unsupported', 'use Authorization: Bearer <token>');
         const token = header.slice(7).trim();
         if (token.startsWith('cpx_')) {
-            const v = installs.verify(token);
+            const v = await installs.verify(token);
             return { kind: 'install', install: v.install, subject: v.subject, scopes: v.scopes, staff: false, origin: 'user' };
         }
         const payload = decodeJwtPayload(token);
         if (!payload) throw new ApiError(401, 'token.invalid', 'malformed bearer token');
-        if (typeof payload.sub === 'string' && PRINCIPAL_SUB.test(payload.sub)) return fromServiceToken(req, token);
+        if (typeof payload.sub === 'string' && PRINCIPAL_SUB.test(payload.sub)) return await fromServiceToken(req, token);
         const claims = await auth.verify(token);
         const user = userFromClaims(claims, token);
         if (!user) throw new ApiError(401, 'token.invalid', 'invalid or expired token');

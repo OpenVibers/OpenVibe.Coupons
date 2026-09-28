@@ -12,7 +12,7 @@ const { boot, check, done } = require('./helpers/boot');
     const t = await boot();
     const alice = t.network.addUser('alice');
     await t.merchant({ name: 'Acme Outdoor', host: 'acme-outdoor.com' });
-    const moderation = () => t.events('coupons.moderation.action');
+    const moderation = async () => await t.events('coupons.moderation.action');
     const setStatus = (id, body) => t.get(`/api/v1/coupons/${id}/status`, { as: t.staffToken(), json: body });
     const valid = (e) => {
         assert.strictEqual(contracts.validate('events.event-envelope@1', e).valid, true, JSON.stringify(e));
@@ -30,7 +30,7 @@ const { boot, check, done } = require('./helpers/boot');
         const r = await t.submit(t.staff, { host: 'acme-outdoor.com', code: 'STAFFOWN', title: 'Staff code' });
         assert.strictEqual(r.status, 201, r.text);
         assert.strictEqual((await setStatus(r.json().coupon.id, { status: 'disabled' })).status, 200);
-        assert.strictEqual(moderation().length, 0);
+        assert.strictEqual((await moderation()).length, 0);
     });
 
     await check('staff disabling someone else\'s code: exactly one valid event', async () => {
@@ -39,7 +39,7 @@ const { boot, check, done } = require('./helpers/boot');
         const id = r.json().coupon.id;
         const off = await setStatus(id, { status: 'disabled', note: 'fabricated code' });
         assert.strictEqual(off.status, 200, off.text);
-        const ev = moderation();
+        const ev = await moderation();
         assert.strictEqual(ev.length, 1);
         valid(ev[0]);
         assert.deepStrictEqual(ev[0].subject, { type: 'moderation_action', id: `coupon:${id}` });
@@ -53,10 +53,10 @@ const { boot, check, done } = require('./helpers/boot');
     await check('approving a shop members proposed: one merchant.approved, not one per code it publishes', async () => {
         const r = await t.submit(alice, { url: 'https://www.new-gadgets.net/cart', code: 'GADGET5', title: 'Five off gadgets' });
         assert.strictEqual(r.json().merchant.status, 'pending');
-        const n = moderation().length;
+        const n = (await moderation()).length;
         const ok = await t.get(`/staff/merchants/${r.json().merchant.id}/status`, { as: t.staff, form: { csrf: t.csrf(t.staff), status: 'active' } });
         assert.strictEqual(ok.status, 200);
-        const ev = moderation();
+        const ev = await moderation();
         assert.strictEqual(ev.length, n + 1);
         valid(ev[n]);
         assert.strictEqual(ev[n].payload.action, 'merchant.approved');
