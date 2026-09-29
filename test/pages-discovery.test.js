@@ -108,6 +108,16 @@ const { boot, check, done } = require('./helpers/boot');
         assert.match(about.text, /reads only the hostname/);
     });
 
+    await check('every page carries the boost marker and script; the navbar signs in back to the current page', async () => {
+        for (const url of ['/', '/about', `/m/${shop.slug}`]) {
+            const page = (await t.get(url)).text;
+            assert.match(page, /<meta name="ov-boost" content="coupons@[^"]+">/, `${url}: the boost marker`);
+            assert.match(page, /<script src="\/shared\/boost\.js\?v=[^"]+" data-main="#main" defer><\/script>/, `${url}: the boost script, main = #main`);
+            assert.match(page, /"loginUrl":"\/auth\/login\?next=\{path\}"/, `${url}: the navbar's login template`);
+            assert.match(page, /<main id="main"/, `${url}: the swappable main`);
+        }
+    });
+
     await check('health, readiness, release, 404s', async () => {
         assert.strictEqual((await t.get('/api/health')).json().service, 'openvibe-coupons');
         const ready = await t.get('/api/ready');
