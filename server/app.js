@@ -17,6 +17,7 @@ const contracts = require('openvibe-contracts');
 
 const { createSsoClient } = require('openvibe-sdk/sso');
 const { jwksClient } = require('openvibe-sdk/auth');
+const { createIndexNow } = require('openvibe-shared/indexnow');
 
 const configLib = require('./config');
 const { openStore } = require('./db');
@@ -49,11 +50,19 @@ async function createApp(opts = {}) {
     const config = opts.config || configLib.load();
     const log = opts.log || console;
     const fetchImpl = opts.fetchImpl || globalThis.fetch;
+    // IndexNow (openvibe-shared/indexnow): created once at boot. No INDEXNOW_KEY → off, nothing mounted,
+    // nothing sent. Tests inject a spy; the pings themselves are queued and never fatal.
+    const indexnow = opts.indexnow !== undefined ? opts.indexnow : createIndexNow({
+        host: config.baseUrl,
+        key: config.indexnowKey,
+        fetch: fetchImpl,
+        log: (...args) => log.warn(...args),
+    });
     // PostgreSQL (ADR-035): opened and migrated here unless the caller (a test, a script) hands in a store.
     const store = opts.store || await openStore(config, { now: opts.now, log });
 
     const outbox = createCouponsOutbox({ db: store.db, config, fetchImpl, now: store.now, log });
-    const publication = createPublication({ store, config, outbox });
+    const publication = createPublication({ store, config, outbox, indexnow });
     const merchants = createMerchants({ store });
     const coupons = createCoupons({ store, merchants, publication, outbox });
     const reports = createReports({ store, config, coupons, merchants, publication });
@@ -82,7 +91,7 @@ async function createApp(opts = {}) {
     const viewers = createViewerResolver({ auth, jwks, config, installs });
     const worker = createWorker({ config, coupons, importer, outbox, log });
 
-    const ctx = { config, store, outbox, publication, merchants, coupons, reports, installs, watches, moderation, importer, auth, jwks, viewers, worker };
+    const ctx = { config, store, outbox, publication, merchants, coupons, reports, installs, watches, moderation, importer, auth, jwks, viewers, worker, indexnow };
 
     const app = express();
     app.disable('x-powered-by');
@@ -131,6 +140,8 @@ async function createApp(opts = {}) {
     release.mount(app, { registry: metrics.registry });
     const readiness = createCouponsReadiness({ store, jwks, outbox, worker, importer, reports, config, release: release.release, valkey: ctx.valkey });
     app.get('/api/ready', readiness.handler);
+    // GET /<key>.txt — the IndexNow key file, mounted only when a key is configured (nothing else).
+    if (indexnow.enabled) app.get(`/${config.indexnowKey}.txt`, indexnow.keyFile);
 
     // ── Sign-in (OAuth2 client of OpenVibe.Network) ─────────
     app.use('/auth/', rateLimit({ windowMs: 15 * 60_000, limit: 60, standardHeaders: true, legacyHeaders: false }));

@@ -228,15 +228,15 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
     /** Send the Search documents of a code and its merchant (inside a transaction). */
     async function syncIndex(c, { traceparent } = {}) {
         const m = await merchants.byId(c.merchant_id);
-        await publication.sendDocument(publication.couponDocument(c, m, { restrictionsText: restrictionsText(await restrictionsOf(c.id)), sourceRefs: await sourceRefs(c.id) }), { traceparent });
-        if (m) await publication.sendDocument(publication.merchantDocument(m, await activeCount(m.id)), { traceparent });
+        await publication.sendDocument(publication.couponDocument(c, m, { restrictionsText: restrictionsText(await restrictionsOf(c.id)), sourceRefs: await sourceRefs(c.id) }), { traceparent, page: publication.couponPath(c) });
+        if (m) await publication.sendDocument(publication.merchantDocument(m, await activeCount(m.id)), { traceparent, page: publication.merchantPath(m) });
     }
 
     async function syncMerchant(m, { traceparent } = {}) {
-        await publication.sendDocument(publication.merchantDocument(m, await activeCount(m.id)), { traceparent });
+        await publication.sendDocument(publication.merchantDocument(m, await activeCount(m.id)), { traceparent, page: publication.merchantPath(m) });
         for (const { id } of await q.ofMerchant.all(m.id)) {
             const c = await get(id);
-            await publication.sendDocument(publication.couponDocument(c, m, { restrictionsText: restrictionsText(await restrictionsOf(c.id)), sourceRefs: await sourceRefs(c.id) }), { traceparent });
+            await publication.sendDocument(publication.couponDocument(c, m, { restrictionsText: restrictionsText(await restrictionsOf(c.id)), sourceRefs: await sourceRefs(c.id) }), { traceparent, page: publication.couponPath(c) });
         }
     }
 

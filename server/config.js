@@ -36,7 +36,8 @@ function load(env = process.env) {
         },
 
         // PostgreSQL (ADR-035): DATABASE_URL serves (PgBouncer), DATABASE_DIRECT_URL migrates (owner role).
-        db: { url: env.DATABASE_URL || '', directUrl: env.DATABASE_DIRECT_URL || '' },
+        // COUPONS_PGLITE_DIR (tests only) puts the embedded development database in its own directory.
+        db: { url: env.DATABASE_URL || '', directUrl: env.DATABASE_DIRECT_URL || '', pgliteDir: env.COUPONS_PGLITE_DIR || '' },
         valkey: { url: env.VALKEY_URL || '', prefix: env.VALKEY_PREFIX || 'ov:coupons:' },
 
         // OpenVibe.Network: SSO (OAuth2 authorization server), JWKS, client-credentials tokens.
@@ -103,6 +104,10 @@ function load(env = process.env) {
             enabled: env.COUPONS_WORKER !== 'off',
             intervalMs: int(env.COUPONS_SWEEP_INTERVAL_MS, 60 * 1000),
         },
+
+        // IndexNow (openvibe-shared/indexnow): a key makes search engines recrawl a page the moment it
+        // appears, changes or leaves the index. Unset: IndexNow is off — no key file, no requests.
+        indexnowKey: String(env.INDEXNOW_KEY || '').trim(),
     };
 }
 

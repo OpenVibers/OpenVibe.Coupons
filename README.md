@@ -448,6 +448,7 @@ First install (done once; kept for a rebuild):
      - `COUPONS_STAFF_SUBJECTS` (optional)
      - `EVENTS_URL=http://127.0.0.1:4300`
      - `BASE_URL=https://openvibe.coupons`
+     - `INDEXNOW_KEY` (optional; enables IndexNow — the key file at `/<key>.txt` and a ping when an indexable page changes. Unset: off, and drills leave it unset)
    - Optionally set `OV_SOURCES_INTERNAL_URL=http://127.0.0.1:4720`.
    - Once the extension has a store id, set `COUPONS_EXTENSION_ORIGINS`.
 3. **systemd:** install `deploy/systemd/openvibe-coupons.service` (port 4850).
