@@ -24,17 +24,18 @@
  * Identity never comes from a request body or query.
  */
 const contracts = require('openvibe-contracts');
-const { extractToken, claimsToUser, decodeJwtPayload } = require('./sso');
+const { claimsToUser, decodeJwtPayload } = require('openvibe-sdk/sso');
+const { verifyServiceToken } = require('openvibe-sdk/auth');
 const { checkCapability } = require('./capabilities');
 const { ApiError } = require('../http/errors');
 
-const { ids, serviceAuth, http, staff: staffMap } = contracts;
+const { ids, http, staff: staffMap } = contracts;
 const PRINCIPAL_SUB = /^(svc|app|mod):/;
 const AUDIENCE = 'openvibe.coupons';
 
 const ANONYMOUS = Object.freeze({ kind: 'anonymous', subject: null, staff: false, origin: 'user' });
 
-function createViewerResolver({ auth, config, installs }) {
+function createViewerResolver({ auth, jwks, config, installs }) {
     const staffSubjects = new Set(config.staffSubjects || []);
 
     function userFromClaims(claims, token) {
@@ -46,9 +47,10 @@ function createViewerResolver({ auth, config, installs }) {
     }
 
     async function fromServiceToken(req, token) {
-        const publicKey = await auth.ensureKey();
-        if (!publicKey) throw new ApiError(503, 'identity.unavailable', 'the Network signing key is not loaded yet');
-        const r = serviceAuth.verifyServiceToken(token, { publicKey, issuer: config.networkUrl, audience: AUDIENCE });
+        // The key the token's kid names, from the same JWKS client the sign-in uses; the rules are this
+        // service's pinned openvibe-contracts (which refuse a sandbox token, as before).
+        const r = await verifyServiceToken(token, { jwks, issuer: config.networkUrl, audience: AUDIENCE, contracts });
+        if (!r.ok && r.code === 'token.unavailable') throw new ApiError(503, 'identity.unavailable', 'the Network signing key is not loaded yet');
         if (!r.ok) throw new ApiError(401, r.code, r.reason);
         // Developer apps (app:…) and modules (mod:…) are third parties: they act only for the person
         // who authorized them (on_behalf_of), never for whoever X-OV-Subject names. Only first-party
@@ -95,7 +97,7 @@ function createViewerResolver({ auth, config, installs }) {
 
     /** Pages: the ov_token cookie (or a Bearer user token); services and installs are anonymous here. */
     async function resolvePage(req) {
-        const token = extractToken(req);
+        const token = auth.extractToken(req);
         if (!token || token.startsWith('cpx_')) return ANONYMOUS;
         const payload = decodeJwtPayload(token);
         if (!payload || (typeof payload.sub === 'string' && PRINCIPAL_SUB.test(payload.sub))) return ANONYMOUS;

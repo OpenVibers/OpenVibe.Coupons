@@ -15,9 +15,11 @@ const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 const contracts = require('openvibe-contracts');
 
+const { createSsoClient } = require('openvibe-sdk/sso');
+const { jwksClient } = require('openvibe-sdk/auth');
+
 const configLib = require('./config');
 const { openStore } = require('./db');
-const { createAuthClient, createAuthRoutes } = require('./auth/sso');
 const { createViewerResolver } = require('./auth/viewer');
 const { createCouponsOutbox } = require('./events/outbox');
 const { createPublication } = require('./domain/publication');
@@ -40,7 +42,7 @@ const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const VERSION = require('../package.json').version;
 
 /**
- * opts: config, store, now (clock), fetchImpl, auth (a createAuthClient-like object), log,
+ * opts: config, store, now (clock), fetchImpl, auth (an openvibe-sdk/sso client), jwks, log,
  * limitsNow (the per-actor limiter's clock, tests)
  */
 async function createApp(opts = {}) {
@@ -59,11 +61,28 @@ async function createApp(opts = {}) {
     const watches = createWatches({ store });
     const moderation = createModeration({ store, merchants, coupons, outbox });
     const importer = createSourcesImporter({ store, config, merchants, coupons, fetchImpl, log });
-    const auth = opts.auth || createAuthClient(config);
-    const viewers = createViewerResolver({ auth, config, installs });
+    // Offline session verification and the service-token key share the SDK's process-wide JWKS client.
+    const jwksUrl = `${config.networkInternalUrl}/api/.well-known/jwks`;
+    const jwks = opts.jwks || jwksClient(jwksUrl, { log });
+    const auth = opts.auth || createSsoClient({
+        site: 'coupons',
+        baseUrl: config.baseUrl,
+        clientId: config.oauth.clientId,
+        clientSecret: config.oauth.clientSecret,
+        redirectUri: config.oauth.redirectUri,
+        scope: config.oauth.scope,
+        networkUrl: config.networkUrl,
+        networkInternalUrl: config.networkInternalUrl,
+        issuer: config.issuer || config.networkUrl,
+        secureCookies: config.cookies.secure,
+        jwks: jwksUrl,
+        fetch: fetchImpl,
+        log,
+    });
+    const viewers = createViewerResolver({ auth, jwks, config, installs });
     const worker = createWorker({ config, coupons, importer, outbox, log });
 
-    const ctx = { config, store, outbox, publication, merchants, coupons, reports, installs, watches, moderation, importer, auth, viewers, worker };
+    const ctx = { config, store, outbox, publication, merchants, coupons, reports, installs, watches, moderation, importer, auth, jwks, viewers, worker };
 
     const app = express();
     app.disable('x-powered-by');
@@ -109,12 +128,12 @@ async function createApp(opts = {}) {
     app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'openvibe-coupons', version: VERSION }));
     // GET /release.json (ADR-016) and POST /release-metrics: open tabs' update reports into /metrics.
     release.mount(app, { registry: metrics.registry });
-    const readiness = createCouponsReadiness({ store, auth, outbox, worker, importer, reports, config, release: release.release, valkey: ctx.valkey });
+    const readiness = createCouponsReadiness({ store, jwks, outbox, worker, importer, reports, config, release: release.release, valkey: ctx.valkey });
     app.get('/api/ready', readiness.handler);
 
     // ── Sign-in (OAuth2 client of OpenVibe.Network) ─────────
     app.use('/auth/', rateLimit({ windowMs: 15 * 60_000, limit: 60, standardHeaders: true, legacyHeaders: false }));
-    app.use('/auth', createAuthRoutes(config, auth));
+    app.use('/auth', auth.router(express));
     { const legal = require('openvibe-shared/legal'); app.get(legal.PATHS, legal.handler({ id: 'coupons', service: 'coupons', host: 'openvibe.coupons', name: 'OpenVibe.Coupons', profile: 'ugc' })); }
 
     // ── Static assets (content-hashed ?v= → immutable) ──────

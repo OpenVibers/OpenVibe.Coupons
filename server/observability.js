@@ -14,7 +14,7 @@
 const { createReadiness } = require('openvibe-shared/ready');
 const { CHARTER_TABLES } = require('./db');
 
-function createCouponsReadiness({ store, auth, outbox, worker, importer, reports, config, valkey = null, release = null }) {
+function createCouponsReadiness({ store, jwks, outbox, worker, importer, reports, config, valkey = null, release = null }) {
     const { db } = store;
     return createReadiness({
         service: 'coupons',
@@ -35,8 +35,8 @@ function createCouponsReadiness({ store, auth, outbox, worker, importer, reports
             {
                 name: 'network_jwks', required: false,
                 check: () => {
-                    if (auth.client.publicKey) return true;
-                    auth.ensureKey().catch(() => {});
+                    if (jwks.status().ready) return true;
+                    jwks.keys().catch(() => {});
                     return 'Network signing key not loaded yet: sign-in and service calls are unavailable';
                 },
             },

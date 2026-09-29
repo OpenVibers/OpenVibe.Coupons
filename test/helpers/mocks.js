@@ -61,7 +61,8 @@ async function startNetwork() {
         return { subject: ids.newId('user'), username, display_name: extra.display_name || username, role: extra.role || 'user' };
     }
     function userToken(u) {
-        return jwt.sign({ sub: String(Math.floor(Math.random() * 1e6)), subject_id: u.subject, username: u.username, display_name: u.display_name, role: u.role || 'user' }, privatePem, { algorithm: 'RS256', issuer, expiresIn: '1h' });
+        // Network session tokens are for the site: openvibe-sdk/sso verifies the audience (openvibe.coupons).
+        return jwt.sign({ sub: String(Math.floor(Math.random() * 1e6)), subject_id: u.subject, username: u.username, display_name: u.display_name, role: u.role || 'user' }, privatePem, { algorithm: 'RS256', issuer, audience: 'openvibe.coupons', expiresIn: '1h' });
     }
     function serviceToken(client, cap) {
         return signService({ sub: `svc:${client}`, aud: ['openvibe.coupons'], cap });
