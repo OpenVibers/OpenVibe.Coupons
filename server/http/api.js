@@ -194,7 +194,7 @@ function createApi(ctx) {
         const body = req.body || {};
         const status = body.status === 'pending' ? 'pending' : 'active';
         const m = await merchants.create(body, { status, actor });
-        store().tx(async () => await coupons.syncMerchant(m));
+        await store().tx(async () => await coupons.syncMerchant(m));
         return { merchant: { ...await merchantView(m), status: m.status } };
     }, 201));
 

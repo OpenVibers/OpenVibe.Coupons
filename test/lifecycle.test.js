@@ -205,6 +205,23 @@ const DAY = 24 * HOUR;
         assert.strictEqual((await t.get('/api/v1/merchants/resolve?host=shop.new-gadgets.net')).status, 200);
     });
 
+    await check('POST /merchants waits for syncMerchant: a failed sync reaches the caller as a 500, not a swallowed rejection', async () => {
+        const real = t.ctx.coupons.syncMerchant;
+        const swallowed = [];
+        const onUnhandled = (err) => { swallowed.push(err); };
+        process.on('unhandledRejection', onUnhandled);
+        t.ctx.coupons.syncMerchant = async () => { throw new Error('sync failed'); };
+        try {
+            const res = await t.get('/api/v1/merchants', { as: t.staffToken(), json: { name: 'Failed Sync Shop', domains: [{ host: 'failed-sync.com', include_subdomains: true, path_prefix: '' }] } });
+            assert.strictEqual(res.status, 500, `the sync failure must reach the caller: ${res.status} ${res.text}`);
+            assert.deepStrictEqual(swallowed.map((e) => e.message), [], 'the sync rejection must not be left unhandled');
+        } finally {
+            t.ctx.coupons.syncMerchant = real;
+            await new Promise((r) => setTimeout(r, 20));
+            process.removeListener('unhandledRejection', onUnhandled);
+        }
+    });
+
     await check('duplicates add evidence to the same code; a taken-down code cannot be resubmitted', async () => {
         const a = await t.submit(bob, { host: 'acme-outdoor.com', code: 'trail15', title: 'Same code, other case', evidence_url: 'https://forum.example-deals.org/t/1' });
         assert.strictEqual(a.status, 200);
