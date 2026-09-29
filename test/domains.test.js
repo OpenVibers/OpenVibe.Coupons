@@ -5,8 +5,7 @@
  * registrable domains) — and the same through the resolve API.
  */
 const assert = require('assert');
-const hosts = require('../server/domain/hosts');
-const psl = require('../server/domain/psl');
+const { hosts } = require('openvibe-publishing/ingest');
 const { boot, check, done } = require('./helpers/boot');
 
 (async () => {
@@ -44,7 +43,7 @@ const { boot, check, done } = require('./helpers/boot');
         assert.strictEqual(hosts.registrable('co.uk'), null);
         assert.strictEqual(hosts.registrable('myshopify.com'), null);
         assert.strictEqual(hosts.registrable('bar.ck'), null);
-        assert.strictEqual(psl.publicSuffix('www.example-shop.co.uk'), 'co.uk');
+        assert.strictEqual(hosts.publicSuffix('www.example-shop.co.uk'), 'co.uk');
     });
 
     await check('checkRule refuses a rule on a public suffix and normalizes path prefixes', async () => {

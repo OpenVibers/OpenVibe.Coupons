@@ -9,7 +9,7 @@
   "domain": "openvibe.coupons",
   "contracts": "openvibe-contracts v0.79.0",
   "packages": [
-    "openvibe-publishing v1.0.0",
+    "openvibe-publishing v1.1.0",
     "openvibe-contracts v0.79.0",
     "openvibe-shared v2.2.0",
     "openvibe-sdk v0.25.1"
@@ -42,7 +42,7 @@
     "expired codes leave API, pages, feeds, sitemaps and Search at the instant of expiry",
     "server-rendered pages useful without JavaScript",
     "/api/v1 by capability and browser-helper install tokens",
-    "OpenVibe.Sources coupons import with holds",
+    "OpenVibe.Sources coupons import with holds, on the openvibe-publishing/ingest chassis",
     "SDK outbox events and Search index documents",
     "per-actor limits (openvibe-sdk/limits)"
   ]

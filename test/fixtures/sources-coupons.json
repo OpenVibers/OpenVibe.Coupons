@@ -1,0 +1,100 @@
+{
+  "note": "Captured from the pre-chassis importer (server/clients/sources.js, before plan T9): the Sources items a dry run ingested and the domain rows it produced. test/chassis.test.js replays the items through the chassis importer and must reproduce `golden` exactly. Ids (ULID) are excluded; rows are keyed by code/slug.",
+  "items": [
+    { "id": "itm_01K0000000000000000000000A", "source_key": "staff-coupon-codes", "identity": "https://riverbooks.com/promo#itm_01K0000000000000000000000A", "canonical_url": "https://riverbooks.com/promo", "title": "Autumn reading sale", "fields": { "code": "READ20", "expires": null } },
+    { "id": "itm_01K0000000000000000000000B", "source_key": "staff-coupon-codes", "identity": "https://riverbooks.com/promo#itm_01K0000000000000000000000B", "canonical_url": "https://riverbooks.com/ship", "title": "Free shipping", "fields": { "code": "SHIP10", "expires": "2026-12-31", "min_spend": 25, "currency": "EUR", "new_customers_only": true, "region": "DE", "category": "books" } },
+    { "id": "itm_01K0000000000000000000000H", "source_key": "staff-coupon-codes", "identity": "https://riverbooks.com/promo#itm_01K0000000000000000000000H", "canonical_url": "https://unknown-shop.com/x", "title": "Autumn reading sale", "fields": { "code": "NOPE" } },
+    { "id": "itm_01K0000000000000000000000R", "source_key": "staff-coupon-codes", "identity": "https://riverbooks.com/promo#itm_01K0000000000000000000000R", "canonical_url": "https://riverbooks.com/promo", "title": "Autumn reading sale", "kind": "record" },
+    { "id": "itm_01K0000000000000000000000N", "source_key": "staff-coupon-codes", "identity": "https://riverbooks.com/promo#itm_01K0000000000000000000000N", "canonical_url": "https://riverbooks.com/promo", "title": "Autumn reading sale", "fields": { "expires": "2026-12-01" } },
+    { "id": "itm_01K0000000000000000000000E", "source_key": "staff-coupon-codes", "identity": "https://riverbooks.com/promo#itm_01K0000000000000000000000E", "canonical_url": "https://riverbooks.com/promo", "title": "Autumn reading sale", "fields": { "code": "OLD", "expires": "2026-01-01" } },
+    { "id": "itm_01K0000000000000000000000A", "source_key": "staff-coupon-codes", "identity": "https://riverbooks.com/promo#itm_01K0000000000000000000000A", "canonical_url": "https://riverbooks.com/promo", "title": "Autumn reading sale", "revision": 2, "fields": { "code": "READ20", "expires": "2026-12-31" } }
+  ],
+  "golden": {
+    "outcomes": {
+      "imported": 2,
+      "held:no_merchant": 1,
+      "held:not_a_coupon": 1,
+      "held:no_code": 1,
+      "held:expired": 1,
+      "retry:held:no_merchant": 1
+    },
+    "merchants": [
+      { "slug": "river-books", "name": "River Books", "status": "active" }
+    ],
+    "coupons": [
+      {
+        "merchant": "river-books",
+        "code": "READ20",
+        "code_key": "READ20",
+        "title": "Autumn reading sale",
+        "description": null,
+        "status": "unknown",
+        "status_reason": null,
+        "confidence": null,
+        "review_state": "pending",
+        "origin": "source",
+        "expires_at": 1798761599999,
+        "expires_precision": "date",
+        "expiry_basis": "source",
+        "expired_at": null,
+        "disabled_at": null,
+        "created_by": "svc:sources",
+        "created_at": 1790078400000,
+        "updated_at": 1790078400000,
+        "evidence": [
+          {
+            "kind": "source",
+            "evidence_url": "https://riverbooks.com/promo",
+            "merchant_evidence": 1,
+            "sources_item_id": "itm_01K0000000000000000000000A",
+            "sources_item_rev": 2,
+            "source_key": "staff-coupon-codes",
+            "retrieved_at": 1790071200000,
+            "removed_at": null,
+            "removed_reason": null
+          }
+        ],
+        "restrictions": []
+      },
+      {
+        "merchant": "river-books",
+        "code": "SHIP10",
+        "code_key": "SHIP10",
+        "title": "Free shipping",
+        "description": null,
+        "status": "unknown",
+        "status_reason": null,
+        "confidence": null,
+        "review_state": "pending",
+        "origin": "source",
+        "expires_at": 1798761599999,
+        "expires_precision": "date",
+        "expiry_basis": "source",
+        "expired_at": null,
+        "disabled_at": null,
+        "created_by": "svc:sources",
+        "created_at": 1790078400000,
+        "updated_at": 1790078400000,
+        "evidence": [
+          {
+            "kind": "source",
+            "evidence_url": "https://riverbooks.com/ship",
+            "merchant_evidence": 1,
+            "sources_item_id": "itm_01K0000000000000000000000B",
+            "sources_item_rev": 1,
+            "source_key": "staff-coupon-codes",
+            "retrieved_at": 1790071200000,
+            "removed_at": null,
+            "removed_reason": null
+          }
+        ],
+        "restrictions": [
+          { "kind": "min_spend", "value": null, "amount_minor": 2500, "currency": "EUR" },
+          { "kind": "category", "value": "books", "amount_minor": null, "currency": null },
+          { "kind": "new_customers_only", "value": null, "amount_minor": null, "currency": null },
+          { "kind": "region", "value": "DE", "amount_minor": null, "currency": null }
+        ]
+      }
+    ]
+  }
+}

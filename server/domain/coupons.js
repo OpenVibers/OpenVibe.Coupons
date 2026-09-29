@@ -29,7 +29,7 @@ function publicReason(reason) {
 const { ids } = require('openvibe-contracts');
 const { ApiError } = require('../http/errors');
 const confidence = require('./confidence');
-const hosts = require('./hosts');
+const { hosts } = require('openvibe-publishing/ingest');
 
 const ACTIVE_SQL = `c.review_state = 'published' AND c.status NOT IN ('expired','disabled')
                     AND (c.expires_at IS NULL OR c.expires_at > @now) AND m.status = 'active'`;
@@ -412,7 +412,7 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
         });
     }
 
-    /** coupons.moderation.action for a staff or service action (never the submitter; see events/outbox.js). */
+    /** coupons.moderation.action for a staff or service action (never the submitter; see the outbox in server/app.js). */
     async function moderated(action, c, actor, { reason = null, details = {}, traceparent } = {}) {
         if (!outbox) return null;
         const person = /^usr_/.test(String(actor || '')) ? actor : null;

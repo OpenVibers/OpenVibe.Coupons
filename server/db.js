@@ -19,9 +19,9 @@
  *   coupon_application_hints    where and how to apply a code, per merchant or per code
  *   coupon_watches              members watching a merchant
  *
- * Also here: extension_installs (cpx_ install tokens, hashed), import_state and
- * coupon_import_holds (the OpenVibe.Sources importer), the SDK's event_outbox, and
- * <coupons>_index_revisions (openvibe-publishing index sequencer).
+ * Also here: extension_installs (cpx_ install tokens, hashed), import_state (the importer's run
+ * bookkeeping) and coupon_import_holds, coupons_ingest_cursor (the openvibe-publishing/ingest change
+ * cursor, migration 0002), the SDK's event_outbox, and coupons_index_revisions (index sequencer).
  */
 const fs = require('fs');
 const path = require('path');

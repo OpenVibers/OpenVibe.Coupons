@@ -4,8 +4,12 @@
  * Import from OpenVibe.Sources, category `coupons` (the seeded source is `staff-coupon-codes`, a
  * manual source: codes a merchant published itself, entered by staff with the evidence URL).
  *
- *   GET {OV_SOURCES_INTERNAL_URL}/api/v1/items?category=coupons&after=<cursor>&include_removed=1
- *   with a client-credentials token: [coupons, sources.item.read, openvibe.sources]
+ * The generic half — the Sources HTTP client, the change cursor and the page/savepoint pull loop — is
+ * openvibe-publishing/ingest (plan T9): the client is created with the client-credentials token
+ * (audience openvibe.sources, scope sources.item.read), pullChanges reads the feed in change order
+ * from coupons_ingest_cursor (the old import_state cursor was copied there by migration 0002) and runs
+ * one transaction per page with one savepoint per item. What stays here is the coupons policy: what an
+ * item means for a code, the holds, and the run bookkeeping.
  *
  * For each item, in change order:
  *   removed               its evidence is withdrawn; a code left with no evidence is disabled
@@ -19,22 +23,27 @@
  * Imported codes wait for staff review unless COUPONS_SOURCES_AUTO_PUBLISH=true.
  * A failed fetch changes nothing and is recorded in import_state.last_error.
  */
-const { serviceAuth } = require('openvibe-contracts');
-const hosts = require('../domain/hosts');
+const { createSourcesClient, createChangeCursor, pullChanges, hosts } = require('openvibe-publishing/ingest');
 
 const STATE_KEY = 'sources:coupons';
+const CURSOR_NAME = 'sources';
 
 function createSourcesImporter({ store, config, merchants, coupons, fetchImpl = globalThis.fetch, log = console }) {
     const { db } = store;
-    const enabled = Boolean(config.sources.internalUrl && config.oauth.clientSecret);
-    const tokens = enabled ? serviceAuth.createTokenClient({
-        tokenUrl: `${config.networkInternalUrl}/oauth/token`, clientId: config.oauth.clientId, clientSecret: config.oauth.clientSecret,
-        audience: 'openvibe.sources', scope: 'sources.item.read', fetchImpl,
-    }) : null;
+    const source = createSourcesClient({
+        config: {
+            networkInternalUrl: config.networkInternalUrl,
+            oauth: { clientId: config.oauth.clientId, clientSecret: config.oauth.clientSecret },
+            sources: { internalUrl: config.sources.internalUrl, category: 'coupons' },
+        },
+        fetchImpl, now: store.now,
+    });
+    const enabled = source.enabled;
+    const cursor = createChangeCursor(db, { prefix: 'coupons', now: store.now });
     const q = {
         state: db.prepare('SELECT * FROM import_state WHERE key = ?'),
         ensure: db.prepare('INSERT INTO import_state (key, cursor) VALUES (?, 0) ON CONFLICT DO NOTHING'),
-        cursor: db.prepare('UPDATE import_state SET cursor = ?, last_run_at = ?, last_ok_at = ?, last_error = NULL WHERE key = ?'),
+        ok: db.prepare('UPDATE import_state SET last_run_at = ?, last_ok_at = ?, last_error = NULL WHERE key = ?'),
         failed: db.prepare('UPDATE import_state SET last_run_at = ?, last_error = ? WHERE key = ?'),
         hold: db.prepare(`INSERT INTO coupon_import_holds (item_id, source_key, reason, detail, item, attempts, created_at, updated_at)
                           VALUES (@item_id, @source_key, @reason, @detail, @item, 1, @now, @now)
@@ -61,43 +70,35 @@ function createSourcesImporter({ store, config, merchants, coupons, fetchImpl = 
         return coupons.parseSubmission({ code, title, description: item.summary || null, expires: f.expires || f.expires_at || null, restrictions }, store.now());
     }
 
-    /** Handle one item inside a transaction. → 'imported' | 'updated' | 'withdrawn' | 'held:<reason>' */
-    async function handle(item) {
+    /** Handle one item on the caller's transaction/savepoint handle `t`. → 'imported' | 'updated' | 'withdrawn' | 'held:<reason>' */
+    async function handle(item, t) {
         const now = store.now();
         const held = async (reason, detail = null) => {
             await q.hold.run({ item_id: item.id, source_key: item.source_key || null, reason, detail: detail ? String(detail).slice(0, 300) : null, item: JSON.stringify(item), now });
             return `held:${reason}`;
         };
-        return await store.tx(async () => {
-            if (item.removed) {
-                await coupons.withdrawSourceItem(item.id, item.removed.reason);
-                await q.resolve.run(now, now, item.id);
-                return 'withdrawn';
-            }
-            if (config.sources.keys.length && !config.sources.keys.includes(item.source_key)) return await held('not_selected', `source ${item.source_key} is not in COUPONS_SOURCES_KEYS`);
-            if (item.kind !== 'coupon') return await held('not_a_coupon', `kind ${item.kind}`);
-            if (!item.fields || typeof item.fields.code !== 'string' || !item.fields.code.trim()) return await held('no_code');
-            let parsed;
-            try { parsed = parseItem(item); } catch (err) {
-                return await held(err.code === 'coupon.already_expired' ? 'expired' : 'invalid', err.message);
-            }
-            const at = hosts.hostOfUrl(item.canonical_url);
-            const found = at ? await merchants.resolve(at.host, { path: at.path, includeStatuses: ['active', 'pending'] }) : null;
-            if (!found) return await held('no_merchant', at ? at.host : 'no canonical URL');
-            const r = await coupons.importFromSource(found.merchant, item, parsed, { autoPublish: config.sources.autoPublish });
+        if (item.removed) {
+            await coupons.withdrawSourceItem(item.id, item.removed.reason);
             await q.resolve.run(now, now, item.id);
-            return r.created ? 'imported' : 'updated';
-        });
+            return 'withdrawn';
+        }
+        if (config.sources.keys.length && !config.sources.keys.includes(item.source_key)) return await held('not_selected', `source ${item.source_key} is not in COUPONS_SOURCES_KEYS`);
+        if (item.kind !== 'coupon') return await held('not_a_coupon', `kind ${item.kind}`);
+        if (!item.fields || typeof item.fields.code !== 'string' || !item.fields.code.trim()) return await held('no_code');
+        let parsed;
+        try { parsed = parseItem(item); } catch (err) {
+            return await held(err.code === 'coupon.already_expired' ? 'expired' : 'invalid', err.message);
+        }
+        const at = hosts.hostOfUrl(item.canonical_url);
+        const found = at ? await merchants.resolve(at.host, { path: at.path, includeStatuses: ['active', 'pending'] }) : null;
+        if (!found) return await held('no_merchant', at ? at.host : 'no canonical URL');
+        const r = await coupons.importFromSource(found.merchant, item, parsed, { autoPublish: config.sources.autoPublish });
+        await q.resolve.run(now, now, item.id);
+        return r.created ? 'imported' : 'updated';
     }
 
-    async function getPage(after) {
-        const url = `${config.sources.internalUrl}/api/v1/items?category=coupons&include_removed=1&limit=100&after=${after}`;
-        const res = await fetchImpl(url, { headers: { Accept: 'application/json', ...(await tokens.authHeaders()) }, signal: AbortSignal.timeout(10000) });
-        if (res.status === 401 && tokens.invalidate) tokens.invalidate();
-        const body = await res.json().catch(() => null);
-        if (!res.ok || !body || !Array.isArray(body.items)) throw new Error(`Sources answered ${res.status}`);
-        return body;
-    }
+    /** Coupons' outcome → the chassis' per-item contract. */
+    const chassisOutcome = (o) => (o === 'withdrawn' ? 'removed' : o.startsWith('held:') ? 'hold' : 'applied');
 
     /** One import run. → { outcomes: {…}, cursor } or { error } */
     async function run({ maxPages = 10 } = {}) {
@@ -105,30 +106,25 @@ function createSourcesImporter({ store, config, merchants, coupons, fetchImpl = 
         if (!enabled) return { disabled: true };
         const outcomes = {};
         const count = (o) => { outcomes[o] = (outcomes[o] || 0) + 1; };
-        let cursor = (await q.state.get(STATE_KEY)).cursor;
         try {
-            for (let i = 0; i < maxPages; i++) {
-                const page = await getPage(cursor);
-                for (const item of page.items) count(await handle(item));
-                cursor = page.next_after != null ? Number(page.next_after) : cursor;
-                await q.cursor.run(cursor, store.now(), store.now(), STATE_KEY);
-                if (!page.more) break;
-            }
-            for (const { item } of await q.retryable.all()) count(`retry:${await handle(JSON.parse(item))}`);
-            await q.cursor.run(cursor, store.now(), store.now(), STATE_KEY);
-            return { outcomes, cursor };
+            const r = await pullChanges({
+                db, cursor, source, name: CURSOR_NAME, maxPages, pageSize: 100,
+                apply: async (item, t) => { const o = await handle(item, t); count(o); return chassisOutcome(o); },
+            });
+            for (const { item } of await q.retryable.all()) count(`retry:${await store.tx(async (t) => await handle(JSON.parse(item), t))}`);
+            await q.ok.run(store.now(), store.now(), STATE_KEY);
+            return { outcomes, cursor: r.after };
         } catch (err) {
             await q.failed.run(store.now(), String(err.message).slice(0, 300), STATE_KEY);
             log.warn('[Coupons] Sources import failed (nothing changed):', err.message);
-            return { error: err.message, outcomes, cursor };
+            return { error: err.message, outcomes, cursor: await cursor.get(CURSOR_NAME) };
         }
     }
 
     return {
         enabled,
         run,
-        handle,
-        state: async () => await q.state.get(STATE_KEY),
+        state: async () => ({ ...(await q.state.get(STATE_KEY) || { key: STATE_KEY }), cursor: await cursor.get(CURSOR_NAME) }),
         holds: async () => await q.open.all(),
         holdCount: async () => (await q.openCount.get()).n,
     };

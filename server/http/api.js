@@ -29,7 +29,7 @@ const contracts = require('openvibe-contracts');
 const { guard } = require('../auth/viewer');
 const { CAPABILITIES, SCOPES } = require('../auth/capabilities');
 const { ApiError, run, jsonBody } = require('./errors');
-const hosts = require('../domain/hosts');
+const { hosts } = require('openvibe-publishing/ingest');
 
 const MOZ_EXTENSION_RE = /^moz-extension:\/\/[0-9a-f-]{36}$/;
 

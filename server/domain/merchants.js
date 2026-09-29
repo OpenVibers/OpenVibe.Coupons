@@ -12,7 +12,7 @@
  * merchants resolve publicly.
  */
 const { ids } = require('openvibe-contracts');
-const hosts = require('./hosts');
+const { hosts } = require('openvibe-publishing/ingest');
 const { ApiError } = require('../http/errors');
 
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;

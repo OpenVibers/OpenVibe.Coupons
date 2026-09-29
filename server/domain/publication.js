@@ -4,6 +4,13 @@
  * What the outside world sees of a merchant or a code: canonical URLs, the indexability gate's
  * decision (openvibe-publishing/seo), the OpenVibe.Search document and the product events.
  *
+ * The mechanics — the sequencer revision, the Search event, the outbox write and the IndexNow ping —
+ * are openvibe-publishing/publication (plan T9): createPublication stamps and enqueues on the caller's
+ * transaction, sends nothing for an unchanged document, sends no tombstone for a resource that was
+ * never indexed, and pings IndexNow only for an indexable page that appeared or changed, or a page
+ * Search already had that went away. What stays here is the coupons policy: the gate facts, the
+ * document bodies and the product's own event payloads.
+ *
  *   /m/:slug    merchant page   indexable when the merchant is active and has at least one active
  *                               code; otherwise noindex ("thin": no active codes) — still served
  *   /c/:id      code page       indexable while the code is active; an expired code is noindex
@@ -15,6 +22,7 @@
  */
 const seo = require('openvibe-publishing/seo');
 const hooks = require('openvibe-publishing/index-hooks');
+const { createPublication: createChassisPublication } = require('openvibe-publishing/publication');
 const { isActive } = require('./confidence');
 
 const ACTOR = Object.freeze({ type: 'service', id: 'coupons' });
@@ -22,6 +30,9 @@ const COUPON_POLICY = { minWords: 0 };
 const MERCHANT_POLICY = { minWords: 1 };
 
 function createPublication({ store, config, outbox, indexnow = null }) {
+    const chassis = createChassisPublication({
+        owner: 'coupons', sequencer: store.sequencer, outbox, baseUrl: config.baseUrl, indexnow, now: store.now,
+    });
     const abs = (p) => seo.canonicalUrl(config.baseUrl, p);
     const merchantPath = (m) => `/m/${m.slug}`;
     const couponPath = (c) => `/c/${c.id}`;
@@ -90,21 +101,9 @@ function createPublication({ store, config, outbox, indexnow = null }) {
         });
     }
 
-    /** Stamp and enqueue a Search document (inside the caller's transaction). `page` is the page's path. */
+    /** Stamp and enqueue a Search document on the caller's transaction (inside the change's transaction). */
     async function sendDocument(doc, { traceparent, page } = {}) {
-        if (doc.deleted && await store.sequencer.current(doc.owner, doc.type, doc.id) == null) return null; // never indexed
-        const current = await store.sequencer.current(doc.owner, doc.type, doc.id);
-        const stamped = await store.sequencer.stamp(store.db, doc);
-        if (current === stamped.revision) return null; // the same document again: nothing to send
-        const sent = await outbox.emit(hooks.indexEvent({ document: stamped, now: store.now() }), { traceparent });
-        // IndexNow: an indexable page appeared or changed, or a page Search already had disappeared
-        // (a tombstone). A draft, private or noindex page never pings. pingSoon never throws and is a
-        // no-op without a key, so it can never take a publish down.
-        if (indexnow && indexnow.enabled && page) {
-            const indexable = !stamped.deleted && stamped.indexability && stamped.indexability.decision === 'index';
-            if (indexable || stamped.deleted) indexnow.pingSoon([abs(page), abs('/sitemap.xml')]);
-        }
-        return sent;
+        return await chassis.index(store.db, { document: doc, page, traceparent });
     }
 
     /**

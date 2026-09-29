@@ -17,12 +17,12 @@ const contracts = require('openvibe-contracts');
 
 const { createSsoClient } = require('openvibe-sdk/sso');
 const { jwksClient } = require('openvibe-sdk/auth');
+const { createServiceOutbox } = require('openvibe-sdk/events');
 const { createIndexNow } = require('openvibe-shared/indexnow');
 
 const configLib = require('./config');
 const { openStore } = require('./db');
 const { createViewerResolver } = require('./auth/viewer');
-const { createCouponsOutbox } = require('./events/outbox');
 const { createPublication } = require('./domain/publication');
 const { createMerchants } = require('./domain/merchants');
 const { createCoupons } = require('./domain/coupons');
@@ -61,7 +61,13 @@ async function createApp(opts = {}) {
     // PostgreSQL (ADR-035): opened and migrated here unless the caller (a test, a script) hands in a store.
     const store = opts.store || await openStore(config, { now: opts.now, log });
 
-    const outbox = createCouponsOutbox({ db: store.db, config, fetchImpl, now: store.now, log });
+    // OpenVibe.Events through the shared openvibe-sdk transactional outbox (ADR-004, plan T1/T9): rows are
+    // written inside the change's own transaction; moderationAction never names an owner_subject.
+    const outbox = createServiceOutbox({
+        db: store.db, source: 'coupons', eventsUrl: config.events.url, networkInternalUrl: config.networkInternalUrl,
+        clientId: config.oauth.clientId, clientSecret: config.oauth.clientSecret, intervalMs: config.events.intervalMs,
+        now: store.now, fetch: fetchImpl, log, moderationOwnerSubject: false,
+    });
     const publication = createPublication({ store, config, outbox, indexnow });
     const merchants = createMerchants({ store });
     const coupons = createCoupons({ store, merchants, publication, outbox });
