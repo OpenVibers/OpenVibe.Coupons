@@ -417,7 +417,7 @@ live.
 
 ```bash
 fnm exec --using=22.22.1 npm install
-fnm exec --using=22.22.1 npm test          # temp databases and in-process mocks, no network
+fnm exec --using=22.22.1 npm test          # temp PostgreSQL databases (PGlite) and in-process mocks, no network
 fnm exec --using=22.22.1 npm run dev       # http://localhost:4850 (set OV_OAUTH_CLIENT_SECRET to sign in)
 ```
 
@@ -427,9 +427,7 @@ Production deploys with `sudo ovhost deploy coupons` on the host (strategy `git-
 fast-forward `/opt/openvibe.coupons`, install on a lockfile change, restart, wait for `/api/ready`).
 The unit is `openvibe-coupons.service` on `127.0.0.1:4850`, the env file `/etc/openvibe/coupons.env`. The database is
 `ov_coupons` on the host's data role (`sudo /opt/openvibe.host/roles/data/add-service.sh coupons` writes its settings); the
-release migrates it at boot. The one-time move from SQLite is `scripts/migrate-to-postgres.js` (openvibe-sdk
-`runSqliteMigration`, with a `--pglite` rehearsal mode), run while the service is stopped; the old
-`/var/lib/openvibe-coupons/coupons.db` stays read-only for 7 days as the rollback.
+release migrates it at boot.
 Rollback: ovhost puts the previous sha back by itself when `/api/ready` does not answer 2xx after the
 restart; afterwards `sudo ovhost rollback coupons --to <sha>`. Migrations only add tables and columns.
 
@@ -452,8 +450,7 @@ First install (done once; kept for a rebuild):
      - `BASE_URL=https://openvibe.coupons`
    - Optionally set `OV_SOURCES_INTERNAL_URL=http://127.0.0.1:4720`.
    - Once the extension has a store id, set `COUPONS_EXTENSION_ORIGINS`.
-3. **systemd:** install `deploy/systemd/openvibe-coupons.service` (port 4850,
-   `StateDirectory=openvibe-coupons`).
+3. **systemd:** install `deploy/systemd/openvibe-coupons.service` (port 4850).
 4. **nginx:** install `deploy/nginx/openvibe.coupons.conf`. `/metrics` is never proxied.
 5. **Search:** add `coupons` to `SEARCH_EVENT_OWNERS`.
 6. **Contracts:** done: the capabilities and manifest are released in openvibe-contracts v0.25.0,

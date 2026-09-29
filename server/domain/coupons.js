@@ -190,7 +190,7 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
         pendingReview: db.prepare(`SELECT c.* FROM coupons c WHERE c.review_state = 'pending' AND c.status <> 'disabled' ORDER BY c.created_at LIMIT 200`),
         setReview: db.prepare("UPDATE coupons SET review_state = 'published', updated_at = ? WHERE id = ? AND review_state = 'pending'"),
         setExpiry: db.prepare('UPDATE coupons SET expires_at = ?, expires_precision = ?, expiry_basis = ?, updated_at = ? WHERE id = ?'),
-        // Each reporter's latest report counts once (DISTINCT ON: SQLite took the bare column from the MAX row).
+        // Each reporter's latest report counts once (DISTINCT ON keeps the newest row per reporter).
         reportCounts: db.prepare(`SELECT outcome, COUNT(*) AS n FROM (
                                       SELECT DISTINCT ON (reporter_key) reporter_key, outcome FROM coupon_validation_reports
                                        WHERE coupon_id = ? AND updated_at > ? ORDER BY reporter_key, updated_at DESC) latest

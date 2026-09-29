@@ -24,9 +24,6 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-# Coupons' own database lives in /var/lib/openvibe-coupons; the code tree stays read-only.
-StateDirectory=openvibe-coupons
-Environment=COUPONS_DB_PATH=/var/lib/openvibe-coupons/coupons.db
 
 [Install]
 WantedBy=multi-user.target

@@ -10,9 +10,6 @@
  *   t.submit(user, body)           POST /api/v1/coupons/submit as that user
  *   t.connect(user, { report })    a cpx_ token created through the /connect-extension form
  */
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
 const http = require('http');
 const { startNetwork, startSources } = require('./mocks');
 
@@ -24,13 +21,10 @@ function makeClock(start = Date.parse('2026-09-22T12:00:00Z')) {
 async function boot(opts = {}) {
     const network = await startNetwork();
     const sources = await startSources({ network });
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ov-coupons-test-'));
-    const dbPath = path.join(dir, 'coupons.db');
     const clock = opts.clock || makeClock();
     const staff = network.addUser('staffer', { role: 'admin' });
     const env = {
         NODE_ENV: 'test', PORT: '0', BASE_URL: 'https://openvibe.coupons', TRUST_PROXY: '1',
-        COUPONS_DB_PATH: dbPath,
         OV_NETWORK_URL: network.url, OV_NETWORK_INTERNAL_URL: network.url,
         OV_OAUTH_CLIENT_ID: 'coupons', OV_OAUTH_CLIENT_SECRET: 'shh', COOKIE_SECURE: 'false',
         COUPONS_WORKER: 'off', COUPONS_FORM_SECRET: 'test-form-secret', COUPONS_REPORTER_KEY_SECRET: 'test-reporter-secret',
@@ -42,7 +36,7 @@ async function boot(opts = {}) {
     const quiet = { log() {}, warn() {}, error: (...a) => { if (process.env.VERBOSE) console.error(...a); } };
 
     const { createStore } = require('../../server/db');
-    // One database per boot (PGlite, or COUPONS_TEST_STORE=pg: the containers); a restart keeps it, like a file did.
+    // One database per boot (PGlite, or COUPONS_TEST_STORE=pg: the containers); a restart keeps it.
     const testdb = await require('./db').testDb();
     let server = null;
     let built = null;
@@ -101,10 +95,10 @@ async function boot(opts = {}) {
     }
 
     const t = {
-        network, sources, clock, dbPath, staff, get, events, csrf, merchant, submit, connect,
+        network, sources, clock, staff, get, events, csrf, merchant, submit, connect,
         staffToken: () => network.userToken(staff),
         async restart() { await stop(); await start(); },
-        async close() { await stop(); await testdb.close(); await network.close(); await sources.close(); fs.rmSync(dir, { recursive: true, force: true }); },
+        async close() { await stop(); await testdb.close(); await network.close(); await sources.close(); },
     };
     await start();
     return t;
