@@ -2,58 +2,30 @@
 
 /**
  * Errors as RFC 9457 problems (contracts errors.problem@1, which keeps the legacy { error } field),
- * and the small request helpers every router shares.
+ * and the small request helpers every router shares. Built from openvibe-sdk/service (docs/service.md,
+ * the Blog row) so every service answers the same way; the exports stay put so no call site moves.
  */
-const express = require('express');
-const contracts = require('openvibe-contracts');
-const cache = require('openvibe-shared/cache-policy');
+const svc = require('openvibe-sdk/service');
 
 /** A refusal with a stable problem code (e.g. 404 'coupon.not_found'). */
-class ApiError extends Error {
-    constructor(status, code, detail, extra) {
-        super(detail || code);
-        this.name = 'ApiError';
-        this.status = status;
-        this.code = code;
-        this.extra = extra || null;
-    }
-}
+const ApiError = svc.createServiceError('ApiError');
 
-/** Domain errors (HostError, …) carry { status, code } too. */
-function asApiError(err) {
-    if (err instanceof ApiError) return err;
-    if (err && err.name === 'HostError') return new ApiError(err.status, err.code, err.message);
-    return null;
-}
+const o = {
+    name: 'Coupons API',
+    ServiceError: ApiError,
+    /** Domain errors (HostError, …) carry { status, code } too. */
+    map: (err) => (err && err.name === 'HostError' ? new ApiError(err.status, err.code, err.message) : null),
+};
+
+const asApiError = (err) => svc.asServiceError(err, o);
 
 /** Wrap a JSON handler: its return value is the body; errors become problems. */
-function run(fn, status = 200) {
-    return async (req, res) => {
-        try {
-            const out = await fn(req, res);
-            if (out === undefined || res.headersSent) return;
-            res.status(typeof status === 'function' ? status(out) : status).json(out);
-        } catch (err) {
-            if (res.headersSent) return;
-            const e = asApiError(err);
-            if (e) return contracts.http.sendProblem(res, e.status, e.code, { detail: e.message, ctx: req.ov, extra: e.extra || undefined });
-            console.error('[Coupons API]', err && err.stack ? err.stack : err);
-            contracts.http.sendProblem(res, 500, 'internal.error', { detail: 'Internal error', ctx: req.ov });
-        }
-    };
-}
+const run = (fn, status) => svc.run(fn, status, o);
 
-const jsonParser = express.json({ limit: '32kb' });
-/** JSON body parser whose syntax errors are problems too. */
-function jsonBody(req, res, next) {
-    jsonParser(req, res, (err) => (err ? contracts.http.sendProblem(res, 400, 'request.invalid_json', { detail: 'Malformed JSON body', ctx: req.ov }) : next()));
-}
+/** JSON body parser whose failures are problems too: malformed 400, over the limit 413. */
+const jsonBody = svc.jsonBody({ limit: '32kb' });
 
 /** Private, per-viewer responses: never stored by a shared cache, never indexed. */
-function privateNoStore(res) {
-    res.set('Cache-Control', cache.htmlHeaders({ private: true }));
-    res.vary('Cookie');
-    res.vary('Authorization');
-}
+const privateNoStore = svc.privateNoStore;
 
 module.exports = { ApiError, asApiError, run, jsonBody, privateNoStore };
