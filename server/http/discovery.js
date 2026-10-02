@@ -18,12 +18,13 @@
 const express = require('express');
 const seo = require('openvibe-publishing/seo');
 const sharedSeo = require('openvibe-shared/seo');
+const cache = require('openvibe-shared/cache-policy');
 const pages = require('../render/pages');
 
 function createDiscoveryRoutes({ config, store, merchants, coupons, publication }) {
     const router = express.Router();
     const abs = (p) => seo.canonicalUrl(config.baseUrl, p);
-    const xml = (res, body, type = 'application/xml') => res.type(type).set('Cache-Control', 'public, max-age=300').send(body);
+    const xml = (res, body, type = 'application/xml') => res.type(type).set('Cache-Control', cache.htmlHeaders({ maxAge: 300 })).send(body);
 
     async function activeEntries() {
         const byMerchant = new Map();
@@ -44,11 +45,11 @@ function createDiscoveryRoutes({ config, store, merchants, coupons, publication 
             '# an expired code stays readable but is noindex; a Disallow is not a noindex.',
             sharedSeo.robotsTxt({ sitemaps: [abs('/sitemap.xml')], disallow: ['/auth/', '/api/', '/submit', '/connect-extension', '/staff', '/watching'] }),
         ].join('\n');
-        res.type('text/plain').set('Cache-Control', 'public, max-age=3600').send(body);
+        res.type('text/plain').set('Cache-Control', cache.htmlHeaders({ maxAge: 3600 })).send(body);
     });
 
     router.get('/llms.txt', (_req, res) => {
-        res.type('text/plain').set('Cache-Control', 'public, max-age=3600').send(sharedSeo.llmsTxt({
+        res.type('text/plain').set('Cache-Control', cache.htmlHeaders({ maxAge: 3600 })).send(sharedSeo.llmsTxt({
             name: 'OpenVibe.Coupons',
             summary: 'Coupon codes for online shops with merchant/domain matching, restrictions, honest expiry and validity reports by people.',
             details: 'A code\'s status is exactly one of unknown, reported_working, reported_failed, expired or disabled. Only recent reports by people can make a code reported_working or reported_failed; a submission, a source or a model cannot. An expiry that nobody stated is "unknown" (null in JSON), and restrictions that were not stated are absent, not "none". Every shop page has a JSON twin at /m/<slug>.json and every code at /c/<id>.json with the same content. Expired and taken-down codes are not in lists, feeds or sitemaps.',
@@ -115,7 +116,7 @@ function createDiscoveryRoutes({ config, store, merchants, coupons, publication 
         xml(res, seo.atomFeed({ ...channel, feedUrl: abs('/atom.xml'), ...(items.length ? {} : { updated: bootTime }) }, items), 'application/atom+xml');
     });
     router.get('/feed.json', async (_req, res) => {
-        res.type('application/feed+json').set('Cache-Control', 'public, max-age=300').send(JSON.stringify(seo.jsonFeed({ ...channel, feedUrl: abs('/feed.json') }, feedItems(await recent()))));
+        res.type('application/feed+json').set('Cache-Control', cache.htmlHeaders({ maxAge: 300 })).send(JSON.stringify(seo.jsonFeed({ ...channel, feedUrl: abs('/feed.json') }, feedItems(await recent()))));
     });
     router.get('/m/:slug/feed.xml', async (req, res, next) => {
         const m = await merchants.get(req.params.slug);

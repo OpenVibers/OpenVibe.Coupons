@@ -26,6 +26,7 @@
 const contracts = require('openvibe-contracts');
 const { claimsToUser, decodeJwtPayload } = require('openvibe-sdk/sso');
 const { verifyServiceToken } = require('openvibe-sdk/auth');
+const cache = require('openvibe-shared/cache-policy');
 const { checkCapability } = require('./capabilities');
 const { ApiError } = require('../http/errors');
 
@@ -114,7 +115,7 @@ function createViewerResolver({ auth, jwks, config, installs }) {
                     next();
                 } catch (err) {
                     if (!(err instanceof ApiError)) return next(err);
-                    res.set('Cache-Control', 'private, no-store');
+                    res.set('Cache-Control', cache.htmlHeaders({ private: true }));
                     http.sendProblem(res, err.status, err.code, { detail: err.message, ctx: req.ov });
                 }
             };

@@ -22,6 +22,7 @@
 const express = require('express');
 const ovServe = require('openvibe-shared/serve');
 const frame = require('openvibe-shared/frame');
+const cache = require('openvibe-shared/cache-policy');
 const seo = require('openvibe-publishing/seo');
 const { renderPage } = require('../render/layout');
 const pages = require('../render/pages');
@@ -45,7 +46,7 @@ function createPublicRoutes(ctx) {
     function cacheHeaders(res, { cacheable, robots }) {
         res.vary('Cookie');
         res.vary('Authorization');
-        res.set('Cache-Control', cacheable ? 'public, max-age=60, stale-while-revalidate=60' : 'private, no-store');
+        res.set('Cache-Control', cacheable ? cache.htmlHeaders({ maxAge: 60 }) : cache.htmlHeaders({ private: true }));
         if (robots && robots !== 'index, follow') res.set('X-Robots-Tag', robots);
     }
 
@@ -148,7 +149,7 @@ function createPublicRoutes(ctx) {
         const data = await merchantData(m);
         const decision = publication.merchantDecision(m, data.coupons.length);
         res.vary('Cookie'); res.vary('Authorization');
-        res.set('Cache-Control', 'public, max-age=60');
+        res.set('Cache-Control', cache.htmlHeaders({ maxAge: 60 }));
         if (!decision.indexable) res.set('X-Robots-Tag', decision.robots);
         res.json({ ...data, indexability: { indexable: decision.indexable, reasons: decision.codes } });
     });
@@ -196,7 +197,7 @@ function createPublicRoutes(ctx) {
         if (!found) return;
         const decision = publication.couponDecision(found.c, found.m);
         res.vary('Cookie'); res.vary('Authorization');
-        res.set('Cache-Control', 'public, max-age=60');
+        res.set('Cache-Control', cache.htmlHeaders({ maxAge: 60 }));
         if (!decision.indexable) res.set('X-Robots-Tag', decision.robots);
         res.json({ coupon: await coupons.view(found.c, { merchant: found.m }), merchant: { id: found.m.id, slug: found.m.slug, name: found.m.name, url: publication.merchantUrl(found.m) }, indexability: { indexable: decision.indexable, reasons: decision.codes } });
     });
