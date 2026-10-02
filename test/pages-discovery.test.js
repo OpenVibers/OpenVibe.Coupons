@@ -57,7 +57,7 @@ const { boot, check, done } = require('./helpers/boot');
 
     await check('caching: anonymous pages are public for 60 s, signed-in pages are private; both vary on Cookie', async () => {
         const anon = await t.get(`/m/${shop.slug}`);
-        assert.match(anon.headers.get('cache-control'), /^public, max-age=60/);
+        assert.strictEqual(anon.headers.get('cache-control'), 'public, max-age=60, stale-while-revalidate=3600');
         assert.match(anon.headers.get('vary'), /Cookie/);
         const signed = await t.get(`/m/${shop.slug}`, { as: alice });
         assert.strictEqual(signed.headers.get('cache-control'), 'private, no-store');

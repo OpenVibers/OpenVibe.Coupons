@@ -30,6 +30,7 @@ const { guard } = require('../auth/viewer');
 const { CAPABILITIES, SCOPES } = require('../auth/capabilities');
 const { ApiError, run, jsonBody } = require('./errors');
 const { hosts } = require('openvibe-publishing/ingest');
+const cache = require('openvibe-shared/cache-policy');
 
 const MOZ_EXTENSION_RE = /^moz-extension:\/\/[0-9a-f-]{36}$/;
 
@@ -43,7 +44,7 @@ function createApi(ctx) {
     const moderate = actorLimits.budget('coupons.moderate');
 
     // ── Helpers ─────────────────────────────────────────────
-    const noStore = (res) => res.set('Cache-Control', 'private, no-store');
+    const noStore = (res) => res.set('Cache-Control', cache.htmlHeaders({ private: true }));
 
     function extensionOriginAllowed(origin) {
         if (!origin) return false;
