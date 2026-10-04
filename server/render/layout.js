@@ -41,8 +41,8 @@ let RELEASE = 'dev';
 function setRelease(id) { if (id) RELEASE = String(id); }
 
 /**
- * o: title, description, decision (required), canonical, jsonLd [], feeds [{ type, href, title }],
- *    body (HTML), viewer, config, path, bodyClass
+ * o: title, description, decision (required), canonical, summary, facts, updated, url, jsonLd [],
+ *    feeds [{ type, href, title }], body (HTML), viewer, config, path, bodyClass
  */
 function renderPage(o) {
     if (!o.decision) throw new TypeError('renderPage needs the gate decision');
@@ -74,6 +74,12 @@ function renderPage(o) {
         description: o.description || 'Coupon codes with merchant matching, restrictions, honest expiry and people\'s validity reports.',
         canonical: o.canonical,
         decision: o.decision,
+        // The AI-readable summary (publishing v1.3.0): given one, the shell emits the ai-summary meta
+        // and a WebPage JSON-LD tag from these real fields; with none it emits neither.
+        summary: o.summary,
+        facts: o.facts,
+        updated: o.updated,
+        url: o.url,
         type: 'website',
         jsonLd: o.jsonLd,
         feeds: o.feeds,

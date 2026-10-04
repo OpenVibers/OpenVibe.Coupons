@@ -115,8 +115,10 @@ function createPublicRoutes(ctx) {
         const decision = q ? pageDecision('/', { indexable: false }) : pageDecision('/');
         send(req, res, 200, {
             title: q ? `Search: ${q}` : null, decision, canonical: `${config.baseUrl}/`,
+            // The service's own one-line summary: on "/" the shell turns it into the ai-summary meta
+            // and the page's WebPage JSON-LD. A search result page is noindex and carries neither.
+            ...(q ? {} : { summary: pages.SITE_SUMMARY }),
             feeds: [{ type: 'rss', href: '/feed.xml', title: 'New codes (RSS)' }, { type: 'atom', href: '/atom.xml', title: 'New codes (Atom)' }, { type: 'json', href: '/feed.json', title: 'New codes (JSON Feed)' }],
-            jsonLd: [seo.structuredData.webPage({ url: `${config.baseUrl}/`, name: 'OpenVibe.Coupons', inLanguage: 'en' })],
             body: pages.home({ merchants: list, recent, q, results: q ? await merchants.search(q) : [], total: list.length }),
         }, { cacheable: true });
     });

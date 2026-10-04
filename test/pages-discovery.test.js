@@ -96,6 +96,29 @@ const { boot, check, done } = require('./helpers/boot');
         assert.match((await t.get(`/m/${shop.slug}/feed.xml`)).text, /VEG5/);
     });
 
+    await check('llms-full.txt carries only indexable entries, within its byte budget; the home page carries the AI summary', async () => {
+        const full = await t.get('/llms-full.txt');
+        assert.strictEqual(full.status, 200);
+        assert.match(full.headers.get('content-type'), /^text\/plain/);
+        assert.match(full.text, new RegExp(`URL: https://openvibe\\.coupons/c/${codeId}\\n`));
+        assert.match(full.text, new RegExp(`URL: https://openvibe\\.coupons/m/${shop.slug}\\n`));
+        assert.match(full.text, /Expiry unknown\./, 'the entry carries its short summary');
+        assert.doesNotMatch(full.text, /Minimum spend/, 'never the full source text');
+        assert.ok(Buffer.byteLength(full.text) <= 512 * 1024, 'llms-full stays within maxBytes');
+
+        // A code that leaves active results is not indexable and must not be listed.
+        await t.get('/submit', { as: alice, form: { csrf: t.csrf(alice), merchant: shop.slug, code: 'GONE1', title: 'Withdrawn offer' } });
+        await t.ctx.store.db.query("UPDATE coupons SET status = 'disabled' WHERE code = 'GONE1'");
+        const after = await t.get('/llms-full.txt');
+        assert.doesNotMatch(after.text, /GONE1/, 'a taken-down code is never listed');
+        assert.match(after.text, new RegExp(`URL: https://openvibe\\.coupons/c/${codeId}\\n`), 'the indexable code is still there');
+
+        const home = await t.get('/');
+        assert.match(home.text, /<meta name="ai-summary" content="[^"]+">/, 'the home page carries the ai-summary meta');
+        assert.match(home.text, /"@type":"WebPage"/, 'the home page carries WebPage JSON-LD');
+        assert.match(home.text, /Coupon codes for online shops with merchant\/domain matching/);
+    });
+
     await check('home, search and the about page (with the formula) render without JavaScript', async () => {
         const home = await t.get('/');
         assert.match(home.text, /Green Grocer/);

@@ -5,6 +5,7 @@
  *
  *   GET /robots.txt                sitemap location + explicit automated-consumer policy
  *   GET /llms.txt                  orientation for language models
+ *   GET /llms-full.txt             the same orientation with every indexable entry's short summary
  *   GET /sitemap.xml               sitemap index over the two sections below
  *   GET /sitemaps/merchants.xml    active shops with at least one active code (the gate decides)
  *   GET /sitemaps/coupons.xml      active codes only; lastmod = the code's real last change
@@ -37,6 +38,11 @@ function createDiscoveryRoutes({ config, store, merchants, coupons, publication 
         return out;
     }
 
+    // The short, honest one-liner for a code: status and expiry, never the submitted description.
+    function couponSummary(c) {
+        return `${pages.STATUS_LABEL[c.status]}. ${c.expires_at != null ? `Expires ${new Date(c.expires_at).toISOString().slice(0, 10)}.` : 'Expiry unknown.'}`;
+    }
+
     router.get('/robots.txt', (_req, res) => {
         const body = [
             '# openvibe.coupons automated-consumer policy: search engines and AI crawlers are welcome to read',
@@ -51,7 +57,7 @@ function createDiscoveryRoutes({ config, store, merchants, coupons, publication 
     router.get('/llms.txt', (_req, res) => {
         res.type('text/plain').set('Cache-Control', cache.htmlHeaders({ maxAge: 3600 })).send(sharedSeo.llmsTxt({
             name: 'OpenVibe.Coupons',
-            summary: 'Coupon codes for online shops with merchant/domain matching, restrictions, honest expiry and validity reports by people.',
+            summary: pages.SITE_SUMMARY,
             details: 'A code\'s status is exactly one of unknown, reported_working, reported_failed, expired or disabled. Only recent reports by people can make a code reported_working or reported_failed; a submission, a source or a model cannot. An expiry that nobody stated is "unknown" (null in JSON), and restrictions that were not stated are absent, not "none". Every shop page has a JSON twin at /m/<slug>.json and every code at /c/<id>.json with the same content. Expired and taken-down codes are not in lists, feeds or sitemaps.',
             sections: [
                 { title: 'Start here', links: [
@@ -65,6 +71,29 @@ function createDiscoveryRoutes({ config, store, merchants, coupons, publication 
                     { title: 'Merchant lookup API', url: abs('/api/v1/merchants/resolve?host=example.com'), note: 'GET /api/v1/merchants/resolve?host= and GET /api/v1/merchants/<id>/coupons; anonymous, rate-limited' },
                 ] },
             ],
+        }));
+    });
+
+    // The full-text AI map: the llms.txt header, then one section of exactly the entries its
+    // sitemaps index (the same gate), each as a title, URL and short summary — never full source text.
+    router.get('/llms-full.txt', async (_req, res) => {
+        const entries = (await activeEntries()).filter((e) => e.decision.indexable);
+        const byMerchant = new Map();
+        for (const e of entries) {
+            const cur = byMerchant.get(e.m.id);
+            if (cur) cur.count++;
+            else byMerchant.set(e.m.id, { m: e.m, count: 1 });
+        }
+        const shops = [...byMerchant.values()]
+            .filter(({ m, count }) => publication.merchantDecision(m, count).indexable)
+            .map(({ m, count }) => ({ title: `${m.name} coupon codes`, url: publication.merchantUrl(m), text: `${count} active code${count === 1 ? '' : 's'} right now.` }));
+        const codes = entries.map(({ c, m }) => ({ title: `${c.code} — ${c.title} (${m.name})`, url: publication.couponUrl(c), text: couponSummary(c) }));
+        res.type('text/plain').set('Cache-Control', cache.htmlHeaders({ maxAge: 3600 })).send(sharedSeo.llmsFull({
+            site: 'OpenVibe.Coupons',
+            summary: pages.SITE_SUMMARY,
+            base: config.baseUrl,
+            maxBytes: 512 * 1024,
+            sections: [{ title: 'Shops and codes', pages: [...shops, ...codes] }],
         }));
     });
 
@@ -98,7 +127,7 @@ function createDiscoveryRoutes({ config, store, merchants, coupons, publication 
             id: `urn:openvibe:coupons:${c.id}`,
             url: publication.couponUrl(c),
             title: `${c.code} — ${c.title} (${m.name})`,
-            summary: `${pages.STATUS_LABEL[c.status]}. ${c.expires_at != null ? `Expires ${new Date(c.expires_at).toISOString().slice(0, 10)}.` : 'Expiry unknown.'}`,
+            summary: couponSummary(c),
             published: c.created_at,
             updated: c.updated_at,
             tags: [m.name],
