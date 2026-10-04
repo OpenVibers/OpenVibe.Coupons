@@ -19,6 +19,9 @@ const STATUS_LABEL = {
     expired: 'Expired',
     disabled: 'Taken down',
 };
+// The one-line summary of the service: /llms.txt and /llms-full.txt open with it, and the home page
+// hands it to the shell as its AI-readable summary (ai-summary meta and WebPage JSON-LD).
+const SITE_SUMMARY = 'Coupon codes for online shops with merchant/domain matching, restrictions, honest expiry and validity reports by people.';
 const BASIS_LABEL = {
     evidence: 'as stated on the evidence page',
     submitter: 'according to the person who submitted it',
@@ -276,4 +279,4 @@ function message({ heading, text, action }) {
     return h`<h1>${heading}</h1><p>${text}</p>${action ? h`<p><a href="${action.href}">${action.label}</a></p>` : ''}`;
 }
 
-module.exports = { home, merchant, couponPage, couponCard, about, submitForm, submitted, connect, watching, staff, message, STATUS_LABEL };
+module.exports = { home, merchant, couponPage, couponCard, about, submitForm, submitted, connect, watching, staff, message, STATUS_LABEL, SITE_SUMMARY };
