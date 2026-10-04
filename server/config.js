@@ -97,6 +97,9 @@ function load(env = process.env) {
         events: {
             url: trim(env.EVENTS_URL || ''),
             intervalMs: int(env.EVENTS_RELAY_INTERVAL_MS, 2000),
+            // Webhook secrets for inbound event deliveries (signed by OpenVibe.Events) and the value
+            // scripts/subscribe.js hands to Events when it creates the Sources subscriptions.
+            webhookSecrets: list(env.COUPONS_EVENTS_SECRET),
         },
 
         // Expiry and confidence-decay sweep.
