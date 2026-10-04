@@ -7,21 +7,22 @@
  *   node scripts/subscribe.js [--endpoint http://127.0.0.1:4850/internal/events]
  *   node scripts/subscribe.js --reconcile [--page-size 200] [--max-pages 200]
  *
- * Subscribe reads the environment (.env or /etc/openvibe/coupons.env):
+ * Subscribe reads the environment (.env; the service itself gets /etc/openvibe/coupons.env from systemd):
  *   EVENTS_URL, OV_NETWORK_INTERNAL_URL, OV_OAUTH_CLIENT_ID, OV_OAUTH_CLIENT_SECRET  (the coupons
  *   principal needs events.subscription.manage for audience openvibe.events)
  *   COUPONS_EVENTS_SECRET  the delivery signing secret; the first value is handed to Events, so
  *                          generate it before running this (e.g. `openssl rand -hex 32`). Nothing
  *                          secret is printed.
- * Patterns: sources.item.* (items imported or removed) and sources.fetch.failed (the source's fetch
- * failed; the cursor pull catches up either way). An existing identical subscription is reported
+ * Patterns: sources.item.* and sources.fetch.failed. Only sources.item.created runs the import; the
+ * rest are acknowledged and the cursor pull catches up either way. An existing identical subscription is reported
  * ("exists"), never duplicated.
  *
- * --reconcile pages coupon_merchants (every status: a shop that left active results must reach
- * Search as unpublished) and public coupons (the active-results set feeds and sitemaps already use),
- * re-stamping each Search document through ctx.publication.sendDocument — an unchanged document costs
- * nothing — then kicks the outbox relay. It is idempotent and bounded by --page-size/--max-pages; the
- * report is { sent, unchanged }.
+ * --reconcile pages coupon_merchants and coupons, every status of both (a shop or code that left active
+ * results must reach Search as unpublished or as a tombstone), re-stamping each Search document through
+ * ctx.publication.sendDocument — an unchanged document costs nothing. The rows land in event_outbox;
+ * when the relay is configured the CLI publishes them once before exiting, otherwise the running
+ * service relays them. It is idempotent and bounded by --page-size/--max-pages; the report is
+ * { sent, unchanged }.
  */
 require('dotenv').config();
 const { serviceAuth } = require('openvibe-contracts');
@@ -84,11 +85,11 @@ async function subscribe({ config, endpoint = defaultEndpoint(config), fetchImpl
 }
 
 /**
- * One bounded pass over coupon_merchants + public coupons, re-stamping every Search document and then
- * kicking the outbox relay. → { sent, unchanged } (sendDocument returns null for an unchanged doc).
+ * One bounded pass over every merchant and every code, re-stamping each Search document into the
+ * outbox. → { sent, unchanged } (sendDocument returns null for an unchanged doc).
  */
 async function reconcile({ ctx, pageSize = DEFAULT_PAGE_SIZE, maxPages = DEFAULT_MAX_PAGES, log = console.log } = {}) {
-    if (!ctx || !ctx.merchants || !ctx.coupons || !ctx.publication || !ctx.outbox) throw new Error('reconcile needs the running service context (see server/app.js createApp)');
+    if (!ctx || !ctx.merchants || !ctx.coupons || !ctx.publication) throw new Error('reconcile needs the running service context (see server/app.js createApp)');
     let sent = 0;
     let unchanged = 0;
     const account = (doc) => { if (doc) sent++; else unchanged++; };
@@ -101,7 +102,7 @@ async function reconcile({ ctx, pageSize = DEFAULT_PAGE_SIZE, maxPages = DEFAULT
         if (merchants.length < pageSize) break;
     }
     for (let page = 0; page < maxPages; page++) {
-        const coupons = await ctx.coupons.activePage({ limit: pageSize, offset: page * pageSize });
+        const coupons = await ctx.coupons.allPage({ limit: pageSize, offset: page * pageSize });
         for (const c of coupons) {
             const m = await ctx.merchants.byId(c.merchant_id);
             const doc = ctx.publication.couponDocument(c, m, {
@@ -112,7 +113,6 @@ async function reconcile({ ctx, pageSize = DEFAULT_PAGE_SIZE, maxPages = DEFAULT
         }
         if (coupons.length < pageSize) break;
     }
-    await ctx.outbox.kick();
     log(`reconcile: ${sent} sent, ${unchanged} unchanged`);
     return { sent, unchanged };
 }
@@ -125,7 +125,11 @@ async function main(argv, { fetchImpl = globalThis.fetch, log = console.log } = 
     const { createApp } = require('../server/app');
     const { ctx } = await createApp({ config });
     try {
-        return await reconcile({ ctx, pageSize: args.pageSize, maxPages: args.maxPages, log });
+        const report = await reconcile({ ctx, pageSize: args.pageSize, maxPages: args.maxPages, log });
+        // The relay is not started here, so publish once; without EVENTS_URL the running service relays.
+        if (ctx.outbox.enabled) await ctx.outbox.outbox.flush();
+        else log('events relay off: the rows wait in event_outbox for the running service');
+        return report;
     } finally {
         await ctx.outbox.stop();
         await ctx.store.close();

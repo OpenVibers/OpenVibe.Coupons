@@ -185,6 +185,7 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
                                   ORDER BY c.created_at DESC LIMIT @limit`),
         allActive: db.prepare(`SELECT c.* FROM coupons c JOIN coupon_merchants m ON m.id = c.merchant_id WHERE ${ACTIVE_SQL} ORDER BY c.created_at DESC LIMIT 50000`),
         activePage: db.prepare(`SELECT c.* FROM coupons c JOIN coupon_merchants m ON m.id = c.merchant_id WHERE ${ACTIVE_SQL} ORDER BY c.id LIMIT @limit OFFSET @offset`),
+        allPage: db.prepare('SELECT c.* FROM coupons c ORDER BY c.id LIMIT @limit OFFSET @offset'),
         dueExpiry: db.prepare(`SELECT id FROM coupons WHERE expires_at IS NOT NULL AND expires_at <= ? AND status NOT IN ('expired','disabled') LIMIT 500`),
         decaying: db.prepare(`SELECT DISTINCT c.id FROM coupons c LEFT JOIN coupon_validation_reports r ON r.coupon_id = c.id
                               WHERE c.status NOT IN ('expired','disabled') AND (c.confidence IS NOT NULL OR c.status <> 'unknown' OR r.updated_at > ?) LIMIT 2000`),
@@ -530,6 +531,8 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
         allActive: async () => await q.allActive.all({ now: store.now() }),
         /** One page of the active-results set (scripts/subscribe.js --reconcile). */
         activePage: async ({ limit = 200, offset = 0 } = {}) => await q.activePage.all({ now: store.now(), limit, offset }),
+        /** One page of every code, any status (scripts/subscribe.js --reconcile: a code that left active results gets its tombstone). */
+        allPage: async ({ limit = 200, offset = 0 } = {}) => await q.allPage.all({ limit, offset }),
         pendingReview: async () => await q.pendingReview.all(),
         pendingOfMerchant: async (merchantId) => (await q.byMerchantPending.all(merchantId)).map((r) => r.id),
         /** Publish the codes that waited only because their merchant was pending (not AI or source codes). */

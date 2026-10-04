@@ -5,8 +5,8 @@
  *   - it creates one OpenVibe.Events subscription per Sources pattern, as the coupons principal,
  *     with the configured delivery secret; an existing (409) subscription is reported, not retried,
  *     and nothing secret is ever printed;
- *   - --reconcile is one idempotent, bounded pass over coupon_merchants + public coupons that
- *     re-stamps every Search document and then kicks the outbox relay, reporting { sent, unchanged }.
+ *   - --reconcile is one idempotent, bounded pass over every merchant and every code (any status, so a
+ *     code that left active results gets its tombstone), reporting { sent, unchanged }.
  */
 const assert = require('assert');
 const { load } = require('../server/config');
@@ -100,7 +100,7 @@ const logs = () => { const lines = []; const log = (s) => lines.push(String(s));
         assert.throws(() => parseArgs(['--endpoint']), /--endpoint needs a value/);
     });
 
-    await check('--reconcile re-stamps every Search document, kicks the outbox, and the next pass is unchanged', async () => {
+    await check('--reconcile re-stamps every Search document, the next pass is unchanged, and a code that left active results is tombstoned', async () => {
         const t = await boot();
         try {
             const alice = t.network.addUser('alice');
@@ -110,14 +110,14 @@ const logs = () => { const lines = []; const log = (s) => lines.push(String(s));
             await t.submit(alice, { merchant_id: b.id, code: 'RB10', title: 'Ten off B' });
             // A Search index that lost its publications: no revisions survive.
             await t.ctx.store.db.query('DELETE FROM coupons_index_revisions');
-            let kicks = 0;
-            const realKick = t.ctx.outbox.kick;
-            t.ctx.outbox.kick = async () => { kicks++; };
-            try {
-                assert.deepStrictEqual(await reconcile({ ctx: t.ctx, log: () => {} }), { sent: 4, unchanged: 0 }, '2 merchants + 2 public coupons');
-                assert.deepStrictEqual(await reconcile({ ctx: t.ctx, log: () => {} }), { sent: 0, unchanged: 4 }, 'idempotent: nothing left to send');
-            } finally { t.ctx.outbox.kick = realKick; }
-            assert.strictEqual(kicks, 2, 'the relay is kicked once per pass');
+            assert.deepStrictEqual(await reconcile({ ctx: t.ctx, log: () => {} }), { sent: 4, unchanged: 0 }, '2 merchants + 2 public coupons');
+            assert.deepStrictEqual(await reconcile({ ctx: t.ctx, log: () => {} }), { sent: 0, unchanged: 4 }, 'idempotent: nothing left to send');
+            // A code that left active results behind the index's back still reaches Search.
+            await t.ctx.store.db.query("UPDATE coupons SET status = 'disabled' WHERE code = 'RA10'");
+            const before = Number((await t.ctx.store.db.query("SELECT COUNT(*) AS n FROM event_outbox WHERE envelope->>'event_type' = 'coupons.index_document.deleted'")).rows[0].n);
+            assert.deepStrictEqual(await reconcile({ ctx: t.ctx, log: () => {} }), { sent: 2, unchanged: 2 }, 'its tombstone + its merchant (one fewer active code)');
+            const after = Number((await t.ctx.store.db.query("SELECT COUNT(*) AS n FROM event_outbox WHERE envelope->>'event_type' = 'coupons.index_document.deleted'")).rows[0].n);
+            assert.strictEqual(after - before, 1, 'the disabled code is tombstoned');
         } finally { await t.close(); }
     });
 

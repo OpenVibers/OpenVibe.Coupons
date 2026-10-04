@@ -275,8 +275,8 @@ types. Every envelope validates as `events.event-envelope@1` (tested), with acto
 
 Coupons subscribes to `sources.item.*` and `sources.fetch.failed` with `scripts/subscribe.js`
 (endpoint `/internal/events`, delivery signed with `COUPONS_EVENTS_SECRET`; the import's cursor pull
-works without it). `scripts/subscribe.js --reconcile` re-stamps every Search document in one bounded,
-idempotent pass and reports `{ sent, unchanged }`.
+works without it). `scripts/subscribe.js --reconcile` re-stamps every merchant and every code (any status, so a code that
+left active results gets its tombstone) in one bounded, idempotent pass and reports `{ sent, unchanged }`.
 
 ## Capabilities (registered in openvibe-contracts v0.25.0)
 
