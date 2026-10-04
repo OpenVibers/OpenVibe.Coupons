@@ -273,6 +273,11 @@ The charter's `coupons.created|updated|expired|disabled` are these `coupons.coup
 types. Every envelope validates as `events.event-envelope@1` (tested), with actor
 `{type: service, id: coupons}`, except `coupons.moderation.action`, whose actor is the staff member.
 
+Coupons subscribes to `sources.item.*` and `sources.fetch.failed` with `scripts/subscribe.js`
+(endpoint `/internal/events`, delivery signed with `COUPONS_EVENTS_SECRET`; the import's cursor pull
+works without it). `scripts/subscribe.js --reconcile` re-stamps every merchant and every code (any status, so a code that
+left active results gets its tombstone) in one bounded, idempotent pass and reports `{ sent, unchanged }`.
+
 ## Capabilities (registered in openvibe-contracts v0.25.0)
 
 Service tokens use audience `openvibe.coupons`, with one capability per route:
@@ -317,6 +322,8 @@ What Coupons calls elsewhere, and with which grant, is under
 Each grant is `[client, capability, audience]`:
 
 - `[coupons, events.event.publish, openvibe.events]`
+- `[coupons, events.subscription.manage, openvibe.events]` (only to create the Sources
+  subscriptions: `scripts/subscribe.js`)
 - `[coupons, sources.item.read, openvibe.sources]` (only if the Sources import is turned on)
 - For OpenVibe.AI to deliver `coupons.extract_coupon` drafts:
   `[ai, coupons.coupon.submit, openvibe.coupons]`

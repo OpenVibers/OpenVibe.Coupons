@@ -38,6 +38,7 @@ function createMerchants({ store }) {
         rulesFor: db.prepare(`SELECT d.*, m.status AS merchant_status FROM coupon_merchant_domains d JOIN coupon_merchants m ON m.id = d.merchant_id
                               WHERE d.registrable_domain = ?`),
         listActive: db.prepare(`SELECT * FROM coupon_merchants WHERE status = 'active' ORDER BY lower(name) LIMIT ? OFFSET ?`),
+        listAll: db.prepare('SELECT * FROM coupon_merchants ORDER BY id LIMIT ? OFFSET ?'),
         countActive: db.prepare("SELECT COUNT(*) AS n FROM coupon_merchants WHERE status = 'active'"),
         search: db.prepare(`SELECT m.* FROM coupon_merchants m
                             WHERE m.status = 'active' AND (m.name ILIKE @q ESCAPE '\\'
@@ -138,6 +139,7 @@ function createMerchants({ store }) {
         resolve,
         ownsUrl,
         listActive: async ({ limit = 100, offset = 0 } = {}) => await q.listActive.all(limit, offset),
+        listAll: async ({ limit = 200, offset = 0 } = {}) => await q.listAll.all(limit, offset),
         countActive: async () => (await q.countActive.get()).n,
         async search(text) {
             const t = String(text || '').trim().toLowerCase().slice(0, 60);
