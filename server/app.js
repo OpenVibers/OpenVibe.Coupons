@@ -39,6 +39,7 @@ const { createCouponsReadiness } = require('./observability');
 const { createActorLimits } = require('./http/actor-limits');
 const { createWorker } = require('./worker');
 const { assetVersion } = require('./render/layout');
+const { createWebhookRouter } = require('./events/consumer');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const VERSION = require('../package.json').version;
@@ -149,6 +150,10 @@ async function createApp(opts = {}) {
     app.get('/api/ready', readiness.handler);
     // GET /<key>.txt — the IndexNow key file, mounted only when a key is configured (nothing else).
     if (indexnow.enabled) app.get(`/${config.indexnowKey}.txt`, indexnow.keyFile);
+
+    // ── Inbound events (OpenVibe.Events webhook, signed) ─────
+    // Mounted before sign-in and body-parser: reads its own raw body for the HMAC.
+    app.use(createWebhookRouter(express, { config, store, importer, log }));
 
     // ── Sign-in (OAuth2 client of OpenVibe.Network) ─────────
     app.use('/auth/', rateLimit({ windowMs: 15 * 60_000, limit: 60, standardHeaders: true, legacyHeaders: false }));
