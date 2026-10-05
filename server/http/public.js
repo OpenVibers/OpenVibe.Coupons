@@ -22,6 +22,7 @@
 const express = require('express');
 const ovServe = require('openvibe-shared/serve');
 const frame = require('openvibe-shared/frame');
+const showcase = require('openvibe-shared/showcase');
 const cache = require('openvibe-shared/cache-policy');
 const seo = require('openvibe-publishing/seo');
 const { renderPage } = require('../render/layout');
@@ -106,6 +107,24 @@ function createPublicRoutes(ctx) {
         decision: pageDecision('/updates'), canonical: `${config.baseUrl}/updates`,
         body: frame.updatesBody({ service: 'coupons', siteName: 'OpenVibe.Coupons' }) + `<script src="${ovServe.url('shipped.js')}" defer></script>`,
     }, { cacheable: true }));
+    /** The product's own words above the shops: only what OpenVibe.Coupons does today (the News and Blog homes' kit). */
+    function couponsShowcase() {
+        return showcase.hero({
+            eyebrow: 'OpenVibe.Coupons',
+            title: 'Coupon codes,', accent: 'honestly labelled',
+            lede: 'Codes for online shops with their restrictions, their expiry (or "unknown") and what people reported when they tried them. A code is only ever called working because people said it worked recently.',
+            actions: [{ label: 'Find a shop', href: '#q', primary: true }, { label: 'Submit a code', href: '/submit' }],
+        }) + showcase.features({
+            title: 'What every code tells you',
+            items: [
+                { icon: 'ov:coupons', title: 'The right shop', text: 'Each shop lists the domains and paths it covers, so a code is matched to the site you are on.' },
+                { icon: 'ov:docs', title: 'Restrictions stated', text: 'Minimum spend, new customers only, the products it applies to: written down, not hidden.' },
+                { icon: 'ov:history', title: 'Honest expiry', text: 'An expiry date when there is one, and "unknown" when there is not.' },
+                { icon: 'ov:community', title: 'Reports from people', text: 'Worked or did not work, recently: the status comes from what people said when they tried it.' },
+            ],
+        });
+    }
+
     router.get('/', async (req, res) => {
         const q = typeof req.query.q === 'string' ? req.query.q.slice(0, 60) : '';
         const recent = await Promise.all((await coupons.recentActive(12)).map(async (c) => ({ coupon: c, merchant: await merchants.byId(c.merchant_id) })));
@@ -118,8 +137,10 @@ function createPublicRoutes(ctx) {
             // The service's own one-line summary: on "/" the shell turns it into the ai-summary meta
             // and the page's WebPage JSON-LD. A search result page is noindex and carries neither.
             ...(q ? {} : { summary: pages.SITE_SUMMARY }),
+            // The front page opens with what Coupons is for (openvibe-shared/showcase); a search result page does not.
+            ...(q ? {} : { styles: [showcase.STYLESHEET] }),
             feeds: [{ type: 'rss', href: '/feed.xml', title: 'New codes (RSS)' }, { type: 'atom', href: '/atom.xml', title: 'New codes (Atom)' }, { type: 'json', href: '/feed.json', title: 'New codes (JSON Feed)' }],
-            body: pages.home({ merchants: list, recent, q, results: q ? await merchants.search(q) : [], total: list.length }),
+            body: (q ? '' : couponsShowcase()) + pages.home({ merchants: list, recent, q, results: q ? await merchants.search(q) : [], total: list.length, showcase: !q }),
         }, { cacheable: true });
     });
 

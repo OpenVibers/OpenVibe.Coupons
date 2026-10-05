@@ -1,17 +1,19 @@
 'use strict';
 /**
- * The proposals the lead releases in the next openvibe-contracts version are valid against the
- * released schemas, match what the code enforces and emits, and do not collide with released ids.
+ * The capabilities and service manifest Coupons registered (released in openvibe-contracts v0.97.0
+ * from these very proposals) are valid against the schemas, match what the code enforces and emits,
+ * and do not collide with other owners' released ids.
  */
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const contracts = require('openvibe-contracts');
 const { check, done } = require('./helpers/boot');
-const { PROPOSED, ALL_SCOPES } = require('../server/auth/capabilities');
+const { CAPABILITIES, ALL_SCOPES } = require('../server/auth/capabilities');
 
 const ROOT = path.join(__dirname, '..');
 const DIR = path.join(ROOT, 'docs', 'capabilities-proposal');
+const ENFORCED = new Set(Object.values(CAPABILITIES));
 
 (async () => {
     const files = fs.readdirSync(DIR).filter((f) => f.endsWith('.json'));
@@ -30,9 +32,9 @@ const DIR = path.join(ROOT, 'docs', 'capabilities-proposal');
     });
 
     await check('the proposals are exactly the capabilities the code enforces; install scopes are not capabilities', async () => {
-        assert.deepStrictEqual(caps.map((c) => c.id).sort(), [...PROPOSED].sort());
-        assert.deepStrictEqual([...manifest.capabilities].sort(), [...PROPOSED].sort());
-        for (const s of ALL_SCOPES) assert.ok(!PROPOSED.has(s), `${s} is an install scope, not a capability`);
+        assert.deepStrictEqual(caps.map((c) => c.id).sort(), [...ENFORCED].sort());
+        assert.deepStrictEqual([...manifest.capabilities].sort(), [...ENFORCED].sort());
+        for (const s of ALL_SCOPES) assert.ok(!ENFORCED.has(s), `${s} is an install scope, not a capability`);
     });
 
     await check('the service manifest proposal is a valid registry.service-manifest@1 and declares every event capabilities name', async () => {
@@ -44,7 +46,7 @@ const DIR = path.join(ROOT, 'docs', 'capabilities-proposal');
 
     await check('every event type the code emits is declared, and every declared one is emitted somewhere', async () => {
         const src = ['server/domain/coupons.js', 'server/domain/reports.js'].map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n');
-        const emitted = new Set([...src.matchAll(/'(coupons\.[a-z_]+\.[a-z_]+)'/g)].map((m) => m[1]).filter((x) => !PROPOSED.has(x)));
+        const emitted = new Set([...src.matchAll(/'(coupons\.[a-z_]+\.[a-z_]+)'/g)].map((m) => m[1]).filter((x) => !ENFORCED.has(x)));
         emitted.add('coupons.index_document.upserted');
         emitted.add('coupons.index_document.deleted');
         for (const e of emitted) assert.ok(manifest.eventsProduced.includes(e), `${e} emitted but not declared`);

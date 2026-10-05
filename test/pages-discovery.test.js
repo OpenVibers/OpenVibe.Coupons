@@ -123,8 +123,16 @@ const { boot, check, done } = require('./helpers/boot');
         const home = await t.get('/');
         assert.match(home.text, /Green Grocer/);
         assert.match(home.text, /1 active code</);
+        // The front page opens with the showcase (openvibe-shared/showcase): its hero is the one h1 and its stylesheet is linked;
+        // the shops still follow. A search result page has neither.
+        assert.ok(home.text.includes('class="sc-hero') && home.text.includes('class="sc-sec"'), 'the home opens with the showcase');
+        assert.match(home.text, /<link rel="stylesheet" href="[^"]*showcase\.css[^"]*">/);
+        assert.strictEqual((home.text.match(/<h1[\s>]/g) || []).length, 1, 'one h1 on the home page');
+        assert.ok(home.text.indexOf('class="sc-hero') < home.text.indexOf('Green Grocer'), 'the showcase sits above the shops');
         const s = await t.get('/?q=grocer');
         assert.match(s.text, /Shops matching “grocer”/);
+        assert.ok(!s.text.includes('sc-hero') && !s.text.includes('showcase.css'), 'a search page has no showcase');
+        assert.match(s.text, /<h1>Coupon codes, honestly labelled<\/h1>/);
         assert.match(s.text, /<meta name="robots" content="noindex, nofollow">/, 'search results are not indexed');
         const about = await t.get('/about');
         assert.match(about.text, /confidence = \(1 \+ e \+ W\) \/ \(2 \+ e \+ W \+ F\)/);

@@ -6,7 +6,7 @@
 **deployed internally, not launched**: it runs on the production host on 127.0.0.1:4850 only
 (release `54df411`, `/api/ready` 200), `openvibe.coupons` still shows its placeholder from
 OpenVibe.Sites, and it holds **no codes** (nothing is seeded, no coupons source is enabled). Its
-capabilities and service manifest are registered in openvibe-contracts v0.25.0.
+capabilities and service manifest are registered in openvibe-contracts v0.97.0.
 **Domain:** `openvibe.coupons` · **Port:** 4850 · **Service id:** `coupons`
 **Plan:** OpenVibe End-to-End Realignment & Implementation Plan, revision 3 (20 Sep 2026), §12.10; roadmap §4.2 D, §15.13, §29, §32.
 **License:** AGPL-3.0 (same as every OpenVibe service).
@@ -278,7 +278,7 @@ Coupons subscribes to `sources.item.*` and `sources.fetch.failed` with `scripts/
 works without it). `scripts/subscribe.js --reconcile` re-stamps every merchant and every code (any status, so a code that
 left active results gets its tombstone) in one bounded, idempotent pass and reports `{ sent, unchanged }`.
 
-## Capabilities (registered in openvibe-contracts v0.25.0)
+## Capabilities (registered in openvibe-contracts v0.97.0)
 
 Service tokens use audience `openvibe.coupons`, with one capability per route:
 
@@ -292,7 +292,7 @@ Service tokens use audience `openvibe.coupons`, with one capability per route:
 
 Grants for these ids are decided with the contracts library's matching rule
 (`server/auth/capabilities.js`). The ids and the service manifest are released in
-openvibe-contracts v0.25.0 from the proposals in `docs/capabilities-proposal/` and
+openvibe-contracts v0.97.0 from the proposals in `docs/capabilities-proposal/` and
 `docs/service-manifest-proposal.json`. Install scopes (`coupons.lookup`, `coupons.report`) are
 Coupons-local and aren't capabilities.
 
@@ -303,9 +303,9 @@ What Coupons calls elsewhere, and with which grant, is under
 
 - **PostgreSQL 18 and Valkey 9** (OpenVibe.Host `roles/data/`, ADR-035): every read and write is async through
   `openvibe-sdk/db`; Valkey holds the per-actor limit counters (optional: without `VALKEY_URL` they count per process).
-- **Packages** (all pinned by release tarball): `openvibe-publishing` v1.0.0 (seo gate, ssr,
-  index-hooks), `openvibe-contracts` v0.76.0, `openvibe-shared` v2.2.0 (Frame, app icon, footer,
-  legal, release, metrics, ready, seo), `openvibe-sdk` v0.20.0 (events outbox, service tokens,
+- **Packages** (all pinned by release tarball): `openvibe-publishing` v1.3.0 (seo gate, ssr,
+  index-hooks), `openvibe-contracts` v0.97.0, `openvibe-shared` v2.9.0 (Frame, app icon, footer,
+  legal, release, metrics, ready, seo), `openvibe-sdk` v0.26.0 (events outbox, service tokens,
   per-actor limits).
 - **OpenVibe.Network:**
   - SSO: an OAuth client `coupons` with redirect `https://openvibe.coupons/auth/callback`
@@ -403,7 +403,7 @@ holds. Status against each point:
 3. **SSR public routes useful without JS:** done.
 4. **Persistence and end-to-end workflows:** done and deployed on the host (loopback only, empty database).
 5. **Capability and event registration against OpenVibe.Contracts:** done (openvibe-contracts
-   v0.25.0).
+   v0.97.0).
 6. **Migration and seed strategy, threat review, sitemap/robots/feed behaviour:**
    - There's nothing to migrate and nothing is seeded.
    - Codes come from members, staff and the Sources `coupons` category.
@@ -461,7 +461,7 @@ First install (done once; kept for a rebuild):
 3. **systemd:** install `deploy/systemd/openvibe-coupons.service` (port 4850).
 4. **nginx:** install `deploy/nginx/openvibe.coupons.conf`. `/metrics` is never proxied.
 5. **Search:** add `coupons` to `SEARCH_EVENT_OWNERS`.
-6. **Contracts:** done: the capabilities and manifest are released in openvibe-contracts v0.25.0,
+6. **Contracts:** done: the capabilities and manifest are released in openvibe-contracts v0.97.0,
    and CI's contracts check runs against them.
 7. **Launch:** in the same release, remove `openvibe.coupons` from OpenVibe.Sites and flip the
    Network hub entry (see the launch rule above).
