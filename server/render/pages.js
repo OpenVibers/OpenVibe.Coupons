@@ -115,10 +115,12 @@ function errors(list) {
     return h`<div class="errors" role="alert"><p>Please fix:</p><ul>${list.map((e) => h`<li>${e}</li>`)}</ul></div>`;
 }
 
-function home({ merchants, recent, q, results, total }) {
-    return h`<h1>Coupon codes, honestly labelled</h1>
+// Under the showcase (the front page) its hero is the page's one h1 and says what the site is, so the page starts at the
+// search form; a search result page keeps the site's own h1 and lede.
+function home({ merchants, recent, q, results, total, showcase = false }) {
+    return h`${showcase ? '' : h`<h1>Coupon codes, honestly labelled</h1>
 <p class="lede">Codes for online shops with their restrictions, their expiry (or “unknown”) and what people reported when they tried them. A code is only ever called working because people said it worked recently.</p>
-<form method="get" action="/" class="search" role="search"><label for="q">Find a shop</label> <input id="q" name="q" value="${q || ''}" maxlength="60" placeholder="name or domain"> <button type="submit">Search</button></form>
+`}<form method="get" action="/" class="search${showcase ? ' after-showcase' : ''}" role="search"><label for="q">Find a shop</label> <input id="q" name="q" value="${q || ''}" maxlength="60" placeholder="name or domain"> <button type="submit">Search</button></form>
 ${q ? h`<h2>Shops matching “${q}”</h2>${results.length ? h`<ul class="merchant-list">${results.map((m) => h`<li><a href="/m/${m.slug}">${m.name}</a></li>`)}</ul>` : h`<p class="empty">No shop matches. <a href="/submit">Submit a code</a> for a new one.</p>`}` : ''}
 <h2>Recently added codes</h2>
 ${recent.length ? h`<ul class="recent">${recent.map((r) => h`<li><a href="/c/${r.coupon.id}">${r.coupon.title}</a> at <a href="/m/${r.merchant.slug}">${r.merchant.name}</a> ${statusBadge(r.coupon.status)}</li>`)}</ul>` : h`<p class="empty">No codes yet.</p>`}
