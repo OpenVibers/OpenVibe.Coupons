@@ -5,10 +5,9 @@
  * install tokens.
  *
  * Capabilities (roadmap §15.13, as 3-segment ids) are for OpenVibe services holding a Network
- * client-credentials token. Coupons' ids are proposed in docs/capabilities-proposal/ for the next
- * contracts release; until then a grant is decided locally with the library's own matching rule
- * (the exact id, or a `prefix.*` grant covering it). An id the library knows always goes through
- * the library, so the day the release lands nothing changes here.
+ * client-credentials token. Coupons' ids were released in openvibe-contracts v0.97.0 from
+ * docs/capabilities-proposal/; a grant is decided by the library's own matching rule (the exact
+ * id, or a `prefix.*` grant covering it).
  *
  * Install scopes (coupons.lookup, coupons.report) are NOT Network capabilities: they are the two
  * things a browser-helper install token may do, issued and revoked on this site
@@ -24,19 +23,13 @@ const CAPABILITIES = Object.freeze({
     STATUS_UPDATE: 'coupons.status.update',
     MERCHANT_MANAGE: 'coupons.merchant.manage',
 });
-const PROPOSED = new Set(Object.values(CAPABILITIES));
 
 const SCOPES = Object.freeze({ LOOKUP: 'coupons.lookup', REPORT: 'coupons.report' });
 const ALL_SCOPES = Object.freeze([SCOPES.LOOKUP, SCOPES.REPORT]);
 
 /** → { allowed, code, reason } like capabilities.check(). */
 function checkCapability(claims, capabilityId) {
-    if (!capabilities.get(capabilityId) && PROPOSED.has(capabilityId)) {
-        return capabilities.grants(claims && claims.cap, capabilityId)
-            ? { allowed: true, code: null, reason: null }
-            : { allowed: false, code: 'capability.denied', reason: `${capabilityId} not granted` };
-    }
     return capabilities.check(claims, capabilityId);
 }
 
-module.exports = { CAPABILITIES, PROPOSED, SCOPES, ALL_SCOPES, checkCapability };
+module.exports = { CAPABILITIES, SCOPES, ALL_SCOPES, checkCapability };
