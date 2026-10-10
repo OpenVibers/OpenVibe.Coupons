@@ -3,10 +3,9 @@
 > Coupon codes with merchant matching, restrictions, expiry and real-people validity reports.
 
 **Status:** alpha (roadmap Wave 18, Coupons part). The service runs and its tests pass. It is
-**deployed internally, not launched**: it runs on the production host on 127.0.0.1:4850 only
-(release `54df411`, `/api/ready` 200), `openvibe.coupons` still shows its placeholder from
-OpenVibe.Sites, and it holds **no codes** (nothing is seeded, no coupons source is enabled). Its
-capabilities and service manifest are registered in openvibe-contracts v0.97.0.
+**public at `openvibe.coupons` since 2026-10-09**, after an independent pre-launch security review
+whose fixes shipped first, and it holds **no codes** (nothing is seeded, no coupons source is
+enabled). Its capabilities and service manifest are registered in openvibe-contracts v0.97.0.
 **Domain:** `openvibe.coupons` · **Port:** 4850 · **Service id:** `coupons`
 **Plan:** OpenVibe End-to-End Realignment & Implementation Plan, revision 3 (20 Sep 2026), §12.10; roadmap §4.2 D, §15.13, §29, §32.
 **License:** AGPL-3.0 (same as every OpenVibe service).
@@ -394,31 +393,33 @@ Reporting a vulnerability: [SECURITY.md](SECURITY.md).
 
 ## Launch rule
 
-This repository alone doesn't make the product live. `openvibe.coupons` keeps its placeholder on
-[OpenVibers/OpenVibe.Sites](https://github.com/OpenVibers/OpenVibe.Sites) until all of plan §12.12
-holds. Status against each point:
+The plan §12.12 launch rule is met: `openvibe.coupons` is served from this service's own domain
+since 2026-10-09, no longer as a placeholder on
+[OpenVibers/OpenVibe.Sites](https://github.com/OpenVibers/OpenVibe.Sites) (plan T11, which deletes
+OpenVibe.Sites). Status against each point:
 
 1. **Runtime, health, readiness, observability:** done.
 2. **Canonical identity and auth:** done. The OAuth client, service principal and grants exist in production.
 3. **SSR public routes useful without JS:** done.
-4. **Persistence and end-to-end workflows:** done and deployed on the host (loopback only, empty database).
+4. **Persistence and end-to-end workflows:** done and deployed on the host (empty database).
 5. **Capability and event registration against OpenVibe.Contracts:** done (openvibe-contracts
    v0.97.0).
 6. **Migration and seed strategy, threat review, sitemap/robots/feed behaviour:**
    - There's nothing to migrate and nothing is seeded.
    - Codes come from members, staff and the Sources `coupons` category.
-   - The threat review and the sitemap, robots and feed behaviour are done.
+   - The independent pre-launch security review (2026-10-09) and the sitemap, robots and feed
+     behaviour are done.
 7. **Acceptance tests:** done.
 
-**The launch release does all of these in one release:**
+**The launch release did all of these in one release:**
 
-- Removes `openvibe.coupons` from `OpenVibe.Sites/sites.json`.
-- Switches routing: nginx vhost, DNS and TLS.
-- Flips the Network hub entry (`server/chrome/sites.js`, `status: 'soon'`).
-- Registers maturity in the ecosystem registry.
+- Removed `openvibe.coupons` from `OpenVibe.Sites/sites.json`.
+- Switched routing: nginx vhost, DNS and TLS.
+- Flipped the Network hub entry (`server/chrome/sites.js`, `status: 'soon'`).
+- Registered maturity in the ecosystem registry.
 
-A placeholder never counts as an implemented service, and this README doesn't call the service
-live.
+A placeholder never counted as an implemented service: `openvibe.coupons` is served by this
+repository's code.
 
 ## Development
 
@@ -463,8 +464,8 @@ First install (done once; kept for a rebuild):
 5. **Search:** add `coupons` to `SEARCH_EVENT_OWNERS`.
 6. **Contracts:** done: the capabilities and manifest are released in openvibe-contracts v0.97.0,
    and CI's contracts check runs against them.
-7. **Launch:** in the same release, remove `openvibe.coupons` from OpenVibe.Sites and flip the
-   Network hub entry (see the launch rule above).
+7. **Launch:** done on 2026-10-09: `openvibe.coupons` was removed from OpenVibe.Sites and the
+   Network hub entry was flipped (see the launch rule above).
 
 ---
 
