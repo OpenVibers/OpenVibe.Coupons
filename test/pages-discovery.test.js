@@ -4,6 +4,17 @@
  * feeds, JSON twins, JSON-LD from real fields only), cache-safe, and honest about readiness.
  */
 const assert = require('assert');
+
+function assertSitemapLastmods(xml, tag = 'url') {
+    const entries = [...xml.matchAll(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'g'))];
+    for (const [, body] of entries) {
+        const match = /<lastmod>(\d{4}-\d{2}-\d{2})<\/lastmod>/.exec(body);
+        assert.ok(match, body);
+        assert.strictEqual(new Date(match[1]).toISOString().slice(0, 10), match[1]);
+    }
+    return entries;
+}
+
 const { boot, check, done } = require('./helpers/boot');
 
 (async () => {
@@ -87,6 +98,13 @@ const { boot, check, done } = require('./helpers/boot');
         assert.match((await t.get('/sitemap.xml')).text, /sitemaps\/coupons\.xml[\s\S]*sitemaps\/merchants\.xml|sitemaps\/merchants\.xml[\s\S]*sitemaps\/coupons\.xml/);
         assert.match((await t.get('/sitemaps/coupons.xml')).text, new RegExp(`https://openvibe\\.coupons/c/${codeId}`));
         assert.match((await t.get('/sitemaps/merchants.xml')).text, new RegExp(`https://openvibe\\.coupons/m/${shop.slug}`));
+        const couponMap = (await t.get('/sitemaps/coupons.xml')).text;
+        const merchantMap = (await t.get('/sitemaps/merchants.xml')).text;
+        assertSitemapLastmods(couponMap);
+        assertSitemapLastmods(merchantMap);
+        const row = await t.ctx.store.db.prepare('SELECT updated_at FROM coupons WHERE id = ?').get(codeId);
+        assert.ok(couponMap.includes(`<loc>https://openvibe.coupons/c/${codeId}</loc><lastmod>${new Date(row.updated_at).toISOString().slice(0, 10)}</lastmod>`));
+        assertSitemapLastmods((await t.get('/sitemap.xml')).text, 'sitemap');
         const rss = await t.get('/feed.xml');
         assert.match(rss.headers.get('content-type'), /rss/);
         assert.match(rss.text, /VEG5/);

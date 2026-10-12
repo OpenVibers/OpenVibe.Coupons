@@ -170,6 +170,8 @@ The code is in `server/domain/hosts.js` and `server/domain/psl.js`. The tests ar
 | `/auth/*` | Network SSO, the same session layer as Blog and Community. |
 | `/api/health`, `/api/ready`, `/release.json`, `/metrics` | `/metrics` is loopback only. |
 
+Sitemap entries carry lastmod from each code or shop page's latest change.
+
 ### Discoverability (roadmap §32)
 
 - Every page gets its robots meta, canonical and `X-Robots-Tag` from the `openvibe-publishing/seo`
