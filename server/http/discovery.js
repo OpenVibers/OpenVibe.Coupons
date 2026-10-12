@@ -97,12 +97,24 @@ function createDiscoveryRoutes({ config, store, merchants, coupons, publication 
         }));
     });
 
+    function merchantEntries(entries) {
+        const byMerchant = new Map();
+        for (const e of entries) {
+            const cur = byMerchant.get(e.m.id);
+            if (!cur) byMerchant.set(e.m.id, { m: e.m, count: 1, lastmod: e.c.updated_at });
+            else { cur.count++; cur.lastmod = Math.max(cur.lastmod, e.c.updated_at); }
+        }
+        return [...byMerchant.values()].map(({ m, count, lastmod }) => ({ loc: publication.merchantUrl(m), lastmod: Math.max(lastmod, m.updated_at), decision: publication.merchantDecision(m, count) }));
+    }
+
     router.get('/sitemap.xml', async (_req, res) => {
-        const entries = (await activeEntries()).filter((e) => e.decision.indexable);
-        const newest = entries.length ? Math.max(...entries.map((e) => e.c.updated_at)) : null;
+        const entries = await activeEntries();
+        const coupons = entries.filter((e) => e.decision.indexable);
+        const merchants = merchantEntries(entries).filter((e) => e.decision.indexable);
+        const newest = (rows, time) => rows.length ? new Date(Math.max(...rows.map(time))).toISOString() : undefined;
         xml(res, seo.sitemapIndex([
-            { loc: abs('/sitemaps/merchants.xml'), ...(newest ? { lastmod: new Date(newest).toISOString() } : {}) },
-            { loc: abs('/sitemaps/coupons.xml'), ...(newest ? { lastmod: new Date(newest).toISOString() } : {}) },
+            { loc: abs('/sitemaps/merchants.xml'), lastmod: newest(merchants, (e) => e.lastmod) },
+            { loc: abs('/sitemaps/coupons.xml'), lastmod: newest(coupons, (e) => e.c.updated_at) },
         ]));
     });
 
@@ -111,14 +123,7 @@ function createDiscoveryRoutes({ config, store, merchants, coupons, publication 
     });
 
     router.get('/sitemaps/merchants.xml', async (_req, res) => {
-        const byMerchant = new Map();
-        for (const e of await activeEntries()) {
-            const cur = byMerchant.get(e.m.id);
-            if (!cur) byMerchant.set(e.m.id, { m: e.m, count: 1, lastmod: e.c.updated_at });
-            else { cur.count++; cur.lastmod = Math.max(cur.lastmod, e.c.updated_at); }
-        }
-        const list = [...byMerchant.values()].map(({ m, count, lastmod }) => ({ loc: publication.merchantUrl(m), lastmod: Math.max(lastmod, m.updated_at), decision: publication.merchantDecision(m, count) }));
-        xml(res, seo.sitemap(list).files[0]);
+        xml(res, seo.sitemap(merchantEntries(await activeEntries())).files[0]);
     });
 
     // ── Feeds ───────────────────────────────────────────────
