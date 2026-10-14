@@ -38,6 +38,7 @@ function createMerchants({ store }) {
         rulesFor: db.prepare(`SELECT d.*, m.status AS merchant_status FROM coupon_merchant_domains d JOIN coupon_merchants m ON m.id = d.merchant_id
                               WHERE d.registrable_domain = ?`),
         listActive: db.prepare(`SELECT * FROM coupon_merchants WHERE status = 'active' ORDER BY lower(name) LIMIT ? OFFSET ?`),
+        byName: db.prepare(`SELECT * FROM coupon_merchants WHERE status = 'active' AND lower(name) = lower(?) LIMIT 2`),
         listAll: db.prepare('SELECT * FROM coupon_merchants ORDER BY id LIMIT ? OFFSET ?'),
         countActive: db.prepare("SELECT COUNT(*) AS n FROM coupon_merchants WHERE status = 'active'"),
         search: db.prepare(`SELECT m.* FROM coupon_merchants m
@@ -147,6 +148,13 @@ function createMerchants({ store }) {
             return await q.search.all({ q: `%${t.replace(/[\\%_]/g, (c) => `\\${c}`)}%` });
         },
         pending: async () => await q.pending.all(),
+        /** The one active merchant with exactly this name (any case), or null: never a guess between two. */
+        async byName(name) {
+            const n = String(name || '').trim();
+            if (!n || n.length > 120) return null;
+            const rows = await q.byName.all(n);
+            return rows.length === 1 ? rows[0] : null;
+        },
         slugify,
     };
 }
