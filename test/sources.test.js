@@ -92,6 +92,23 @@ const { boot, check, done } = require('./helpers/boot');
         assert.strictEqual(c.status_reason, 'source_removed');
     });
 
+    await check('a source that names the shop (DealNews): the code goes to the one active merchant of that name, never as merchant evidence', async () => {
+        const amazon = await t.merchant({ name: 'Amazon', host: 'amazon.com' });
+        t.sources.put(item('itm_01K0000000000000000000000N', { source_key: 'dealnews-coupon-codes', canonical_url: 'https://www.dealnews.com/x/1.html', fields: { code: 'UXBMXG9V', merchant: 'amazon', expires: '2026-12-20' } }));
+        t.sources.put(item('itm_01K0000000000000000000000P', { source_key: 'dealnews-coupon-codes', canonical_url: 'https://www.dealnews.com/x/2.html', fields: { code: 'ZZZZ1234', merchant: 'Nowhere Shop' } }));
+        const r = await t.ctx.importer.run();
+        assert.strictEqual(r.outcomes.imported, 1, JSON.stringify(r.outcomes));
+        assert.strictEqual(r.outcomes['held:no_merchant'], 1, JSON.stringify(r.outcomes));
+        const c = await t.ctx.store.db.prepare("SELECT * FROM coupons WHERE code = 'UXBMXG9V'").get();
+        assert.strictEqual(c.merchant_id, amazon.id);
+        assert.strictEqual(c.status, 'unknown');
+        const v = await t.ctx.coupons.view(c);
+        assert.strictEqual(v.evidence[0].merchant_page, false, 'a DealNews page is not the shop\'s own');
+        assert.strictEqual(v.evidence[0].url, 'https://www.dealnews.com/x/1.html');
+        const hold = (await t.ctx.importer.holds()).find((h) => h.item_id === 'itm_01K0000000000000000000000P');
+        assert.match(hold.detail, /the source names "Nowhere Shop"/);
+    });
+
     await check('a failed fetch changes nothing and is recorded', async () => {
         const before = (await t.ctx.store.db.prepare('SELECT COUNT(*) AS n FROM coupons').get()).n;
         const cursor = (await t.ctx.importer.state()).cursor;

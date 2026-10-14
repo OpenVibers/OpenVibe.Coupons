@@ -63,7 +63,7 @@ Nothing is seeded, and no code, merchant or report is invented for a demo.
 - **Notifications.** They belong to the Network's notification store. Watches are recorded, but
   nothing is sent yet.
 - **Search.** OpenVibe.Search indexes what Coupons sends through Events.
-- **Ingestion.** It belongs to OpenVibe.Sources. Coupons only reads the `coupons` category.
+- **Ingestion.** It belongs to OpenVibe.Sources. Coupons only reads the `coupons` category. An item names its shop by its link's host or, when the link is another site's page (DealNews: `dealnews-coupon-codes`), by `fields.merchant`, the shop's name as the source wrote it, which must match exactly one active merchant's name (any case); otherwise it is held `no_merchant` with that name. Such a page is never merchant evidence, so it never raises confidence.
 - **The browser helper.** It lives in OpenVibe.Extensions (ADR-023).
 
 ## Statuses and confidence

@@ -13,7 +13,9 @@
  *
  * For each item, in change order:
  *   removed               its evidence is withdrawn; a code left with no evidence is disabled
- *   kind 'coupon' + fields.code on a host a merchant covers
+ *   kind 'coupon' + fields.code on a host a merchant covers, or else fields.merchant naming exactly one
+ *                         active merchant (a source such as DealNews, whose page is the evidence but
+ *                         names the shop: never merchant evidence, so it never raises confidence)
  *                         a code (status unknown — an item is evidence that a code was published,
  *                         never that it works), or new evidence on the same code; its expiry is
  *                         fields.expires when the item states one, otherwise unknown
@@ -90,8 +92,13 @@ function createSourcesImporter({ store, config, merchants, coupons, fetchImpl = 
             return await held(err.code === 'coupon.already_expired' ? 'expired' : 'invalid', err.message);
         }
         const at = hosts.hostOfUrl(item.canonical_url);
-        const found = at ? await merchants.resolve(at.host, { path: at.path, includeStatuses: ['active', 'pending'] }) : null;
-        if (!found) return await held('no_merchant', at ? at.host : 'no canonical URL');
+        let found = at ? await merchants.resolve(at.host, { path: at.path, includeStatuses: ['active', 'pending'] }) : null;
+        const named = typeof item.fields.merchant === 'string' ? item.fields.merchant.trim().slice(0, 120) : '';
+        if (!found && named) {
+            const m = await merchants.byName(named);
+            if (m) found = { merchant: m };
+        }
+        if (!found) return await held('no_merchant', `${at ? at.host : 'no canonical URL'}${named ? `; the source names "${named}"` : ''}`);
         const r = await coupons.importFromSource(found.merchant, item, parsed, { autoPublish: config.sources.autoPublish });
         await q.resolve.run(now, now, item.id);
         return r.created ? 'imported' : 'updated';
