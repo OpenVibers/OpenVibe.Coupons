@@ -70,7 +70,8 @@ function renderPage(o) {
     return layout.renderDocument({
         site: 'coupons',
         siteName: SITE_NAME,
-        title: o.title ? `${o.title} · ${SITE_NAME}` : SITE_NAME,
+        // The front page's title says what the site is (search results show it); every other page is "<page> · OpenVibe.Coupons".
+        title: o.title ? `${o.title} · ${SITE_NAME}` : o.path === '/' ? `${SITE_NAME}: coupon codes with honest expiry` : SITE_NAME,
         description: o.description || 'Coupon codes with merchant matching, restrictions, honest expiry and people\'s validity reports.',
         canonical: o.canonical,
         decision: o.decision,
