@@ -120,13 +120,27 @@ function errors(list) {
 function home({ merchants, recent, q, results, total, showcase = false }) {
     return h`${showcase ? '' : h`<h1>Coupon codes, honestly labelled</h1>
 <p class="lede">Codes for online shops with their restrictions, their expiry (or “unknown”) and what people reported when they tried them. A code is only ever called working because people said it worked recently.</p>
-`}<form method="get" action="/" class="search${showcase ? ' after-showcase' : ''}" role="search"><label for="q">Find a shop</label> <input id="q" name="q" value="${q || ''}" maxlength="60" placeholder="name or domain"> <button type="submit">Search</button></form>
-${q ? h`<h2>Shops matching “${q}”</h2>${results.length ? h`<ul class="merchant-list">${results.map((m) => h`<li><a href="/m/${m.slug}">${m.name}</a></li>`)}</ul>` : h`<p class="empty">No shop matches. <a href="/submit">Submit a code</a> for a new one.</p>`}` : ''}
-<h2>Recently added codes</h2>
-${recent.length ? h`<ul class="recent">${recent.map((r) => h`<li><a href="/c/${r.coupon.id}">${r.coupon.title}</a> at <a href="/m/${r.merchant.slug}">${r.merchant.name}</a> ${statusBadge(r.coupon.status)}</li>`)}</ul>` : h`<p class="empty">No codes yet.</p>`}
-<h2>Shops (${total})</h2>
-${merchants.length ? h`<ul class="merchant-list">${merchants.map((m) => h`<li><a href="/m/${m.merchant.slug}">${m.merchant.name}</a> <span class="meta">${m.active} active code${m.active === 1 ? '' : 's'}</span></li>`)}</ul>` : h`<p class="empty">No shops listed yet.</p>`}
+`}<section class="find sc-sec${showcase ? ' after-showcase' : ''}" aria-labelledby="find-h"><h2 id="find-h">Find a shop</h2>
+<form method="get" action="/" class="search" role="search"><label class="sr-only" for="q">Shop name or domain</label><input id="q" name="q" type="search" value="${q || ''}" maxlength="60" placeholder="Shop name or domain, like amazon.com"> <button type="submit" class="primary">Search</button></form></section>
+${q ? h`<h2>Shops matching “${q}”</h2>${results.length ? h`<ul class="chips">${results.map((m) => h`<li><a class="chip" href="/m/${m.slug}">${m.name}</a></li>`)}</ul>` : h`<p class="empty">No shop matches. <a href="/submit">Submit a code</a> for a new one.</p>`}` : ''}
+<section class="sc-sec" aria-labelledby="recent-h"><h2 id="recent-h">Recently added codes</h2>
+${recent.length ? h`<ul class="offers">${recent.map((r) => h`<li><a class="offer-title" href="/c/${r.coupon.id}">${r.coupon.title}</a><span class="offer-meta"><a href="/m/${r.merchant.slug}">${r.merchant.name}</a> ${statusBadge(r.coupon.status)}</span></li>`)}</ul>` : h`<p class="empty">No codes yet.</p>`}</section>
+${shopsSection(merchants, total)}
 <p class="meta"><a href="/about">How statuses and confidence work</a> · <a href="/feed.xml">RSS</a> · <a href="/atom.xml">Atom</a> · <a href="/feed.json">JSON Feed</a></p>`;
+}
+
+// The shops: the ones with an active code first (most codes first) as chips with their count; the rest fold away under
+// one line, so thirty shops with nothing today do not bury the few that have something.
+function shopsSection(merchants, total) {
+    if (!merchants.length) return h`<section class="sc-sec" aria-labelledby="shops-h"><h2 id="shops-h">Shops</h2><p class="empty">No shops listed yet.</p></section>`;
+    const byName = (a, b) => a.merchant.name.localeCompare(b.merchant.name, 'en', { sensitivity: 'base' });
+    const live = merchants.filter((m) => m.active > 0).sort((a, b) => (b.active - a.active) || byName(a, b));
+    const quiet = merchants.filter((m) => !(m.active > 0)).sort(byName);
+    const chip = (m) => h`<li><a class="chip" href="/m/${m.merchant.slug}">${m.merchant.name}${m.active > 0 ? h` <span class="chip-n">${String(m.active)}<span class="sr-only"> active code${m.active === 1 ? '' : 's'}</span></span>` : ''}</a></li>`;
+    return h`<section class="sc-sec" aria-labelledby="shops-h"><h2 id="shops-h">Shops</h2>
+<p class="meta">${String(total)} shop${total === 1 ? '' : 's'} listed${live.length ? h`; ${String(live.length)} with an active code right now` : ''}.</p>
+${live.length ? h`<ul class="chips">${live.map(chip)}</ul>` : ''}
+${quiet.length ? h`<details class="quiet"><summary>${live.length ? 'Shops with no active code right now' : 'All shops'} (${String(quiet.length)})</summary><ul class="chips">${quiet.map(chip)}</ul></details>` : ''}</section>`;
 }
 
 function merchant({ m, domains, hints, active, ended, viewer, csrf, watching, back, flashMsg }) {
