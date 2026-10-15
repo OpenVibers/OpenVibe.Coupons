@@ -52,6 +52,14 @@ Other tables in the same database:
 - `event_outbox`: the SDK transactional outbox.
 - `coupons_index_revisions`: the openvibe-publishing index sequencer.
 
+Request telemetry lives in this database too, in `telemetry_samples` (migration
+`0003_telemetry.sql`). Each HTTP request is aggregated by route template, method and status class,
+never by raw URL; once a minute `server/index.js` writes one `http.request` sample per key, plus
+the active-requests, p95 latency and event-loop-lag gauges (openvibe-sdk 0.46 telemetry, the
+`platform.telemetry-sample@1` shape), and deletes rows older than 14 days daily. `/shared` files,
+static assets, health, readiness and `/metrics` are not counted. `server/app.js` builds the
+collector (`createHttpTelemetry`) and mounts its middleware; the flush also runs on stop.
+
 Nothing is seeded, and no code, merchant or report is invented for a demo.
 
 ## Does not own
