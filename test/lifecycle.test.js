@@ -238,6 +238,13 @@ const DAY = 24 * HOUR;
         for (const e of all) {
             const v = contracts.validate('events.event-envelope@1', e);
             assert.ok(v.valid, `${e.event_type}: ${JSON.stringify(v.errors)}`);
+            if (e.event_type === 'coupons.watch.matched') {
+                // Internal, and names exactly its recipient: the watcher Network notifies (test/watch-delivery.test.js).
+                assert.strictEqual(e.visibility, 'internal');
+                assert.ok(contracts.validate('coupons.watch.matched@1', e.payload).valid);
+                assert.doesNotMatch(JSON.stringify(e).split(e.payload.recipient).join(''), /usr_[0-9A-Z]{26}/, `${e.event_type} names someone other than its recipient`);
+                continue;
+            }
             if (e.event_type === 'coupons.moderation.action') {
                 // The audit log names the staff member who acted, and nobody else (never a submitter).
                 assert.ok(contracts.validate('coupons.moderation.action@1', e.payload).valid);

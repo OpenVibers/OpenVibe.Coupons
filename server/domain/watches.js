@@ -4,9 +4,9 @@
  * Members watching a merchant (coupon_watches). A watch is private to its member: it is never
  * shown to anyone else and never leaves Coupons.
  *
- * Delivery is not built yet: Coupons records watches and lists them on /watching, but sends no
- * notification. It will go through the Network's notification store (roadmap W3) when Coupons is
- * granted a notification capability; until then the page says so.
+ * Delivery: when a code for a watched merchant is publicly listed, ./coupons.js notifyWatchers emits one
+ * coupons.watch.matched event per watcher (never the submitter), and OpenVibe.Network turns it into an
+ * inbox notification. The watch list itself never leaves Coupons.
  */
 const { ids } = require('openvibe-contracts');
 const { ApiError } = require('../http/errors');

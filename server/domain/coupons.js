@@ -191,6 +191,7 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
                               WHERE c.status NOT IN ('expired','disabled') AND (c.confidence IS NOT NULL OR c.status <> 'unknown' OR r.updated_at > ?) LIMIT 2000`),
         pendingReview: db.prepare(`SELECT c.* FROM coupons c WHERE c.review_state = 'pending' AND c.status <> 'disabled' ORDER BY c.created_at LIMIT 200`),
         setReview: db.prepare("UPDATE coupons SET review_state = 'published', updated_at = ? WHERE id = ? AND review_state = 'pending'"),
+        watchers: db.prepare('SELECT subject FROM coupon_watches WHERE merchant_id = ? ORDER BY created_at LIMIT 1000'),
         setExpiry: db.prepare('UPDATE coupons SET expires_at = ?, expires_precision = ?, expiry_basis = ?, updated_at = ? WHERE id = ?'),
         // Each reporter's latest report counts once (DISTINCT ON keeps the newest row per reporter).
         reportCounts: db.prepare(`SELECT outcome, COUNT(*) AS n FROM (
@@ -245,6 +246,37 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
     async function publiclyListed(c) {
         const m = await merchants.byId(c.merchant_id);
         return Boolean(m && m.status === 'active' && confidence.isActive(c, store.now()));
+    }
+
+    /**
+     * The people watching the code's merchant are told it is listed (coupons.watch.matched v1, one internal event per
+     * watcher, inside the caller's transaction): only when it is publicly listed now, never the person who submitted
+     * it, and never twice, since every caller runs once per listing (creation, or the one pending → published
+     * approval). OpenVibe.Network turns each into an inbox notification linking the coupon page. No code text leaves.
+     */
+    /** The stated expiry as ISO text (the date alone when it is known only to the day), or null when unknown. */
+    function expiryText(c) {
+        if (c.expires_at == null) return null;
+        const ms = typeof c.expires_at === 'number' || /^\d+$/.test(String(c.expires_at)) ? Number(c.expires_at) : Date.parse(c.expires_at);
+        if (!Number.isFinite(ms)) return null;
+        const iso = new Date(ms).toISOString();
+        return c.expires_precision === 'day' ? iso.slice(0, 10) : iso;
+    }
+
+    async function notifyWatchers(c, { exclude = null, traceparent } = {}) {
+        if (!await publiclyListed(c)) return 0;
+        const m = await merchants.byId(c.merchant_id);
+        let n = 0;
+        for (const { subject } of await q.watchers.all(c.merchant_id)) {
+            if (!/^usr_[0-9A-HJKMNP-TV-Z]{26}$/.test(subject) || subject === exclude) continue;
+            await publication.emit('coupons.watch.matched', { type: 'coupon', id: c.id }, {
+                recipient: subject, merchant_id: m.id, merchant_name: String(m.name).slice(0, 200), merchant_url: publication.merchantUrl(m),
+                coupon_id: c.id, coupon_url: publication.couponUrl(c), title: String(c.title || 'A new code').slice(0, 500),
+                expires_at: expiryText(c),
+            }, { traceparent });
+            n++;
+        }
+        return n;
     }
 
     function lifecyclePayload(c, extra = {}) {
@@ -344,6 +376,7 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
             await q.history.run(id, null, 'unknown', null, null, 'created', who.actor, now);
             const c = await get(id);
             await publication.emit('coupons.coupon.created', { type: 'coupon', id }, lifecyclePayload(c, { origin: c.origin }), { isPublic: await publiclyListed(c), traceparent });
+            await notifyWatchers(c, { exclude: who.actor, traceparent });
             await syncIndex(c, { traceparent });
             return { coupon: c, merchant, duplicate: false, created: true };
         });
@@ -380,6 +413,7 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
         await q.history.run(id, null, 'unknown', null, null, 'created', 'svc:sources', now);
         const c = await get(id);
         await publication.emit('coupons.coupon.created', { type: 'coupon', id }, lifecyclePayload(c, { origin: 'source' }), { isPublic: await publiclyListed(c) });
+        await notifyWatchers(c);
         await syncIndex(c);
         return { coupon: c, created: true };
     }
@@ -429,6 +463,7 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
             await q.history.run(c.id, c.status, after.status, c.confidence, after.confidence, 'staff:approved', actor, store.now());
             if (audit && actor !== c.created_by) await moderated('coupon.approved', c, actor, { traceparent });
             await publication.emit('coupons.coupon.updated', { type: 'coupon', id: c.id }, lifecyclePayload(after, { previous_status: c.status, reason: 'approved' }), { isPublic: await publiclyListed(after) });
+            await notifyWatchers(after, { exclude: c.created_by, traceparent });
             await syncIndex(after);
             return after;
         });

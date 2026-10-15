@@ -23,6 +23,7 @@
   ],
   "eventsProduced": [
     "coupons.coupon.created",
+    "coupons.watch.matched",
     "coupons.coupon.updated",
     "coupons.coupon.expired",
     "coupons.coupon.disabled",

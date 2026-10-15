@@ -154,7 +154,7 @@ ${hints.length ? h`<ul class="hints">${hints.map((x) => h`<li>How to apply codes
 <h2>Active codes (${active.length})</h2>
 ${active.length ? active.map((v) => couponCard(v, { viewer, csrf, back, link: true })) : h`<p class="empty">No active codes for ${m.name} right now.</p>`}
 <p><a href="/submit?merchant=${m.slug}">Submit a code for ${m.name}</a></p>
-${viewer && viewer.kind === 'user' ? h`<form method="post" action="/m/${m.slug}/watch">${hidden(csrf)}<input type="hidden" name="action" value="${watching ? 'unwatch' : 'watch'}"><button type="submit">${watching ? 'Stop watching' : 'Watch this shop'}</button> <span class="meta">(your watch list is private; notifications are not sent yet)</span></form>` : ''}
+${viewer && viewer.kind === 'user' ? h`<form method="post" action="/m/${m.slug}/watch">${hidden(csrf)}<input type="hidden" name="action" value="${watching ? 'unwatch' : 'watch'}"><button type="submit">${watching ? 'Stop watching' : 'Watch this shop'}</button> <span class="meta">(private to you; new codes reach your OpenVibe notifications)</span></form>` : ''}
 ${ended.length ? h`<h2>Recently ended (not in active results)</h2><ul class="ended">${ended.map((v) => h`<li><code>${v.code}</code> — ${v.title} · ${v.status === 'expired' ? 'expired' : 'past its expiry'} ${v.expired_at ? v.expired_at.slice(0, 10) : v.expiry.expires_at ? v.expiry.expires_at.slice(0, 10) : ''}</li>`)}</ul>` : ''}
 <p class="meta">Follow: <a href="/m/${m.slug}/feed.xml">RSS</a> · <a href="/m/${m.slug}.json">JSON</a></p>`;
 }
@@ -260,7 +260,7 @@ ${installs.length ? h`<table class="installs"><thead><tr><th>Name</th><th>Token<
 
 function watching({ merchants }) {
     return h`<h1>Shops you watch</h1>
-<p class="meta">Private to you. Notifications are not sent yet; this list is where watched shops are collected until they are.</p>
+<p class="meta">Private to you. When a new code for one of these shops is listed, you get a notification in your OpenVibe inbox (unless you muted service notifications there).</p>
 ${merchants.length ? h`<ul class="merchant-list">${merchants.map((m) => h`<li><a href="/m/${m.slug}">${m.name}</a></li>`)}</ul>` : h`<p class="empty">You are not watching any shop. Use “Watch this shop” on a shop's page.</p>`}`;
 }
 
