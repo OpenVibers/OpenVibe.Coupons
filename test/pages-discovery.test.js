@@ -78,6 +78,8 @@ const { boot, check, done } = require('./helpers/boot');
 
     await check('JSON-LD only from real fields (breadcrumbs, web page); the JSON twin has the page\'s content', async () => {
         const page = (await t.get(`/c/${codeId}`)).text;
+        assert.strictEqual((page.match(/<h1\b/g) || []).length, 1, 'the code page has one h1: its title');
+        assert.match(page, /<h1 class="coupon-title">/);
         const blocks = [...page.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
         assert.deepStrictEqual(blocks.map((b) => b['@type']).sort(), ['BreadcrumbList', 'WebPage']);
         const json = (await t.get(`/c/${codeId}.json`)).json();
