@@ -18,7 +18,7 @@ const BUDGETS = {
     jsRawKB: 245,   // 239.1 (212.2 before the shell's web-runtime.js)
     jsBrotliKB: 59,   // 56.3 (49.9 before web-runtime.js)
     cssFiles: 2,   // 2 (coupons.css + showcase.css, home only)
-    cssRawKB: 17.5,   // 14.8 (4.4 before showcase.css)
+    cssRawKB: 19,   // 18.1 (14.8 before 2026-10-15's search bar, offers list and shop chips; 4.4 before showcase.css)
     cssBrotliKB: 4.5,   // 3.6 (1.2 before showcase.css)
     externalFiles: 1,   // 0
 };

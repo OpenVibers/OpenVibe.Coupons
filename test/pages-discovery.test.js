@@ -140,7 +140,8 @@ const { boot, check, done } = require('./helpers/boot');
     await check('home, search and the about page (with the formula) render without JavaScript', async () => {
         const home = await t.get('/');
         assert.match(home.text, /Green Grocer/);
-        assert.match(home.text, /1 active code</);
+        assert.match(home.text, /Green Grocer <span class="chip-n">1<span class="sr-only"> active code<\/span><\/span>/, 'a shop with a code is a chip with its count, worded for screen readers');
+        assert.match(home.text, /1 shop listed; 1 with an active code right now\./);
         // The front page opens with the showcase (openvibe-shared/showcase): its hero is the one h1 and its stylesheet is linked;
         // the shops still follow. A search result page has neither.
         assert.ok(home.text.includes('class="sc-hero') && home.text.includes('class="sc-sec"'), 'the home opens with the showcase');
