@@ -88,10 +88,11 @@ function reportForms(v, { viewer, csrf, back }) {
 </div>`;
 }
 
-/** One code. v: coupons.view(); opts: { viewer, csrf, back, link } */
+/** One code. v: coupons.view(); opts: { viewer, csrf, back, link, page } (page: its own page, where the title is the h1) */
 function couponCard(v, opts = {}) {
+    const title = opts.link ? h`<a href="/c/${v.id}">${v.title}</a>` : v.title;
     return h`<article class="coupon status-${v.status}" id="${v.id}">
-<h3>${opts.link ? h`<a href="/c/${v.id}">${v.title}</a>` : v.title}</h3>
+${opts.page ? h`<h1 class="coupon-title">${title}</h1>` : h`<h3>${title}</h3>`}
 <p class="code-line"><span class="label">Code</span> <code class="code">${v.code}</code> ${statusBadge(v.status)}</p>
 ${v.description ? h`<p>${v.description}</p>` : ''}
 <p class="meta">${confidenceText(v)}</p>
@@ -162,7 +163,7 @@ function couponPage({ v, m, history, viewer, csrf, back, flashMsg }) {
     return h`${raw(ssr.breadcrumbsHtml([{ name: 'Coupons', url: '/' }, { name: m.name, url: `/m/${m.slug}` }, { name: v.code }]))}
 ${flash(flashMsg)}
 ${v.active ? '' : h`<p class="notice">This code is not in active results (${STATUS_LABEL[v.status] ? STATUS_LABEL[v.status].toLowerCase() : v.status}${v.expiry.known && !v.active && v.status !== 'expired' ? ', past its expiry' : ''}).</p>`}
-${couponCard(v, { viewer, csrf, back })}
+${couponCard(v, { viewer, csrf, back, page: true })}
 <h2>Status history</h2>
 ${history.length ? h`<ol class="history">${history.map((x) => h`<li>${utc(new Date(x.created_at).toISOString())}: ${x.from_status ? h`${STATUS_LABEL[x.from_status] || x.from_status} → ` : ''}${STATUS_LABEL[x.to_status] || x.to_status}${x.confidence_after != null ? h`, confidence ${Math.round(x.confidence_after * 100)}%` : ''} <span class="meta">(${x.reason.startsWith('staff') ? 'staff' : x.reason.startsWith('service:') ? 'service' : x.reason})</span></li>`)}</ol>` : h`<p class="empty">No changes yet.</p>`}
 <p class="meta"><a href="/c/${v.id}.json">This code as JSON</a></p>`;
