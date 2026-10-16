@@ -158,7 +158,7 @@ function createPublicRoutes(ctx) {
                 { icon: 'ov:coupons', title: 'Codes for this shop', text: 'On a shop\'s site it lists the codes OpenVibe.Coupons knows for it, with restrictions, expiry and what people reported, best first.' },
                 { icon: 'ov:check', title: 'Try these codes on this page', text: 'At checkout, one button types the codes into the shop\'s own coupon box, presses Apply and reads the total before and after. Codes reported not working are skipped; at most ten are tried.' },
                 { icon: 'ov:food', title: 'Compare delivery apps', text: 'On DoorDash, Uber Eats, Grubhub, Seamless, Caviar or Instacart it opens the same restaurant on every app through OpenVibe.Food.', href: 'https://openvibe.food/delivery' },
-                { icon: 'ov:rent', title: 'Keep a rental on your board', text: 'On Craigslist, Facebook Marketplace, Zillow and other listing sites, one click keeps the listing on your OpenVibe.Rent board.', href: 'https://openvibe.rent/board' },
+                { icon: 'ov:rent', title: 'Rentals: keep them, check the rent', text: 'On Craigslist, Zillow and other listing sites, one click keeps the listing on your OpenVibe.Rent board, and another checks its rent against what the city usually costs.', href: 'https://openvibe.rent/in' },
                 { icon: 'ov:watch', title: 'Watch a page', text: 'Opens a watch on OpenVibe.Watch for the page, so you hear when a price, a stock line or a listing changes.', href: 'https://openvibe.watch' },
                 { icon: 'ov:shield', title: 'No referral games', text: 'It never replaces affiliate tags, never adds its own, never opens tabs behind your back and never earns from your shopping.' },
             ],
