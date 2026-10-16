@@ -165,7 +165,7 @@ const { boot, check, done } = require('./helpers/boot');
         assert.ok(cp.text.includes('class="sc-hero') && /<h1[^>]*>The OpenVibe[\s\S]{0,80}Companion/.test(cp.text), 'the page opens with its showcase');
         assert.strictEqual((cp.text.match(/<h1[\s>]/g) || []).length, 1, 'one h1');
         assert.ok(cp.text.includes('https://github.com/OpenVibers/OpenVibe.Extensions/releases/latest') && cp.text.includes('chrome://extensions') && cp.text.includes('about:debugging'), 'how to install it');
-        assert.ok(cp.text.includes('https://openvibe.rent/board') && cp.text.includes('https://openvibe.food/delivery'), 'what it does across sites');
+        assert.ok(cp.text.includes('https://openvibe.rent/in') && cp.text.includes('checks its rent') && cp.text.includes('https://openvibe.food/delivery'), 'what it does across sites');
         assert.match(cp.text, /<link rel="canonical" href="[^"]*\/companion">/);
         assert.doesNotMatch(cp.text, /noindex/, 'indexable');
     });
