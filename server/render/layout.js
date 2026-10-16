@@ -22,7 +22,7 @@ const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public');
 const NAV = [
     { label: 'Merchants', href: '/' },
     { label: 'Submit a code', href: '/submit' },
-    { label: 'Browser helper', href: '/connect-extension' },
+    { label: 'Browser extension', href: '/companion' },
 ];
 
 const hashes = new Map();
@@ -62,10 +62,10 @@ function renderPage(o) {
     };
     // This site's own account links live in the shared navbar's account menu (the page's account
     // bar below is only for visitors without JavaScript).
-    if (signedIn) nav.menu = { before: [{ label: 'Watching', href: '/watching', icon: 'fa-bell' }, { label: 'Browser helper', href: '/connect-extension', icon: 'fa-puzzle-piece' }, ...(viewer.staff ? [{ label: 'Staff', href: '/staff', icon: 'fa-shield' }] : [])] };
+    if (signedIn) nav.menu = { before: [{ label: 'Watching', href: '/watching', icon: 'fa-bell' }, { label: 'Connected browsers', href: '/connect-extension', icon: 'fa-puzzle-piece' }, ...(viewer.staff ? [{ label: 'Staff', href: '/staff', icon: 'fa-shield' }] : [])] };
     const footer = { service: 'coupons', variant: 'full', mount: '#ov-footer', brandName: SITE_NAME, updates: '/updates' };
     const account = signedIn
-        ? `<a href="/watching">Watching</a> · <a href="/connect-extension">Browser helper</a>${viewer.staff ? ' · <a href="/staff">Staff</a>' : ''} · <a href="/auth/logout?next=${loginNext}">Sign out</a>`
+        ? `<a href="/watching">Watching</a> · <a href="/connect-extension">Connected browsers</a>${viewer.staff ? ' · <a href="/staff">Staff</a>' : ''} · <a href="/auth/logout?next=${loginNext}">Sign out</a>`
         : `<a href="/auth/login?next=${loginNext}">Sign in with OpenVibe</a>`;
     return layout.renderDocument({
         site: 'coupons',

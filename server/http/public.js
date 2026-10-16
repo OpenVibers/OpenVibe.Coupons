@@ -113,7 +113,7 @@ function createPublicRoutes(ctx) {
             eyebrow: 'OpenVibe.Coupons',
             title: 'Coupon codes,', accent: 'honestly labelled',
             lede: 'Codes for online shops with their restrictions, their expiry (or "unknown") and what people reported when they tried them. A code is only ever called working because people said it worked recently.',
-            actions: [{ label: 'Find a shop', href: '#q', primary: true }, { label: 'Submit a code', href: '/submit' }],
+            actions: [{ label: 'Find a shop', href: '#q', primary: true }, { label: 'Get the browser extension', href: '/companion' }, { label: 'Submit a code', href: '/submit' }],
         }) + showcase.features({
             title: 'What every code tells you',
             items: [
@@ -121,6 +121,7 @@ function createPublicRoutes(ctx) {
                 { icon: 'ov:docs', title: 'Restrictions stated', text: 'Minimum spend, new customers only, the products it applies to: written down, not hidden.' },
                 { icon: 'ov:history', title: 'Honest expiry', text: 'An expiry date when there is one, and "unknown" when there is not.' },
                 { icon: 'ov:community', title: 'Reports from people', text: 'Worked or did not work, recently: the status comes from what people said when they tried it.' },
+                { icon: 'ov:plug', title: 'Tried for you, no referral games', text: 'The OpenVibe Companion extension tries the codes in the shop\'s coupon box when you ask, and never rewrites referral links.', href: '/companion' },
             ],
         });
     }
@@ -141,6 +142,34 @@ function createPublicRoutes(ctx) {
             ...(q ? {} : { styles: [showcase.STYLESHEET] }),
             feeds: [{ type: 'rss', href: '/feed.xml', title: 'New codes (RSS)' }, { type: 'atom', href: '/atom.xml', title: 'New codes (Atom)' }, { type: 'json', href: '/feed.json', title: 'New codes (JSON Feed)' }],
             body: (q ? '' : couponsShowcase()) + pages.home({ merchants: list, recent, q, results: q ? await merchants.search(q) : [], total: list.length, showcase: !q }),
+        }, { cacheable: true });
+    });
+
+    // The OpenVibe Companion browser extension (OpenVibers/OpenVibe.Extensions): what it does and sees, how to install it.
+    function companionShowcase() {
+        return showcase.hero({
+            eyebrow: 'Browser extension · free and open source',
+            title: 'The OpenVibe', accent: 'Companion',
+            lede: 'For Chrome, Edge, Brave and Firefox. It finds coupon codes for the shop you are on and tries them for you when you ask. It never rewrites links or adds referral tags, so the creator or site that sent you keeps its credit.',
+            actions: [{ label: 'Get the Companion', href: pages.COMPANION_RELEASE, primary: true }, { label: 'How to install it', href: '#install' }],
+        }) + showcase.features({
+            title: 'What it does',
+            items: [
+                { icon: 'ov:coupons', title: 'Codes for this shop', text: 'On a shop\'s site it lists the codes OpenVibe.Coupons knows for it, with restrictions, expiry and what people reported, best first.' },
+                { icon: 'ov:check', title: 'Try these codes on this page', text: 'At checkout, one button types the codes into the shop\'s own coupon box, presses Apply and reads the total before and after. Codes reported not working are skipped; at most ten are tried.' },
+                { icon: 'ov:food', title: 'Compare delivery apps', text: 'On DoorDash, Uber Eats, Grubhub, Seamless, Caviar or Instacart it opens the same restaurant on every app through OpenVibe.Food.', href: 'https://openvibe.food/delivery' },
+                { icon: 'ov:rent', title: 'Keep a rental on your board', text: 'On Craigslist, Facebook Marketplace, Zillow and other listing sites, one click keeps the listing on your OpenVibe.Rent board.', href: 'https://openvibe.rent/board' },
+                { icon: 'ov:watch', title: 'Watch a page', text: 'Opens a watch on OpenVibe.Watch for the page, so you hear when a price, a stock line or a listing changes.', href: 'https://openvibe.watch' },
+                { icon: 'ov:shield', title: 'No referral games', text: 'It never replaces affiliate tags, never adds its own, never opens tabs behind your back and never earns from your shopping.' },
+            ],
+        });
+    }
+    router.get('/companion', (req, res) => {
+        send(req, res, 200, {
+            title: 'The OpenVibe Companion browser extension', decision: pageDecision('/companion'), canonical: `${config.baseUrl}/companion`,
+            description: 'A free, open-source extension for Chrome, Edge, Brave and Firefox: coupon codes for the shop you are on, tried when you ask, delivery apps compared and rentals kept on your board. It never rewrites referral links.',
+            styles: [showcase.STYLESHEET],
+            body: companionShowcase() + pages.companion(),
         }, { cacheable: true });
     });
 
