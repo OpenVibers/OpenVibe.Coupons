@@ -169,6 +169,7 @@ The code is in `server/domain/hosts.js` and `server/domain/psl.js`. The tests ar
 | `POST /c/:id/report` | Worked or didn't work, with an optional reason. Needs sign-in and a form token. |
 | `POST /m/:slug/watch` | Watch or stop watching a shop. |
 | `/submit` | Submit a code: shop, code, what it gives, details, evidence link, expiry (empty means unknown) and whether the evidence page states it, restrictions, and how to apply. |
+| `/companion` | The OpenVibe Companion browser extension (OpenVibers/OpenVibe.Extensions `browser/`): what it does across Coupons, Food, Rent and Watch, what it sees and sends, and how to install it from its release zip. Linked from the home and the navbar. |
 | `/connect-extension` | Create, list and revoke browser-helper tokens. |
 | `/watching` | Your watched shops. Private. |
 | `/staff` | Add shops, approve or reject pending shops and codes, take down, expire or re-enable a code, and see the import holds. |

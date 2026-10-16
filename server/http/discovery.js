@@ -63,6 +63,7 @@ function createDiscoveryRoutes({ config, store, merchants, coupons, publication 
                 { title: 'Start here', links: [
                     { title: 'All shops', url: abs('/'), note: 'with recently added codes' },
                     { title: 'How codes are labelled', url: abs('/about'), note: 'statuses, the confidence formula, expiry, privacy' },
+                    { title: 'The OpenVibe Companion', url: abs('/companion'), note: 'the open-source browser extension: codes for the shop you are on, tried when you ask; never rewrites referral links' },
                     { title: 'Sitemap', url: abs('/sitemap.xml') },
                 ] },
                 { title: 'Feeds', links: [{ title: 'RSS', url: abs('/feed.xml') }, { title: 'Atom', url: abs('/atom.xml') }, { title: 'JSON Feed', url: abs('/feed.json') }] },

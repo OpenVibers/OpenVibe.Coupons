@@ -157,7 +157,17 @@ const { boot, check, done } = require('./helpers/boot');
         assert.match(s.text, /<meta name="robots" content="noindex, nofollow">/, 'search results are not indexed');
         const about = await t.get('/about');
         assert.match(about.text, /confidence = \(1 \+ e \+ W\) \/ \(2 \+ e \+ W \+ F\)/);
-        assert.match(about.text, /reads only the hostname/);
+        assert.match(about.text, /sends this site only the <strong>hostname<\/strong>/);
+        assert.match(about.text, /never rewrites links or adds referral tags/);
+        assert.ok(home.text.includes('href="/companion"'), 'the home links the Companion');
+        const cp = await t.get('/companion');
+        assert.strictEqual(cp.status, 200);
+        assert.ok(cp.text.includes('class="sc-hero') && /<h1[^>]*>The OpenVibe[\s\S]{0,80}Companion/.test(cp.text), 'the page opens with its showcase');
+        assert.strictEqual((cp.text.match(/<h1[\s>]/g) || []).length, 1, 'one h1');
+        assert.ok(cp.text.includes('https://github.com/OpenVibers/OpenVibe.Extensions/releases/latest') && cp.text.includes('chrome://extensions') && cp.text.includes('about:debugging'), 'how to install it');
+        assert.ok(cp.text.includes('https://openvibe.rent/board') && cp.text.includes('https://openvibe.food/delivery'), 'what it does across sites');
+        assert.match(cp.text, /<link rel="canonical" href="[^"]*\/companion">/);
+        assert.doesNotMatch(cp.text, /noindex/, 'indexable');
     });
 
     await check('every page carries the boost marker and script; the navbar signs in back to the current page', async () => {

@@ -186,8 +186,8 @@ function about({ confidence }) {
 <p>An expiry is shown only when someone stated it, with who stated it. A date without a time means the end of that day in UTC, because the merchant's time zone is not known. When nobody stated an expiry it is “unknown”.</p>
 <h2 id="privacy">Privacy</h2>
 <p>Codes and their aggregates are public. Who submitted or reported a code is never shown, never returned by the API and never sent in events. Reports are stored under a keyed hash of the person, not their account id.</p>
-<h2 id="helper">The browser helper</h2>
-<p>The OpenVibe browser helper reads only the hostname of the tab you are on, and only when you open it. It asks this site's public API which shop that is and lists its codes. It never reads the page, never sends the page's address beyond the hostname and holds no OpenVibe sign-in: to report from it you <a href="/connect-extension">connect it</a> with a token that can only look up and report, and that you can revoke at any time.</p>`;
+<h2 id="helper">The OpenVibe Companion</h2>
+<p>The <a href="/companion">OpenVibe Companion</a> browser extension sends this site only the <strong>hostname</strong> of the tab you are on, and only when you open it, to list that shop's codes. When you press “Try these codes on this page” it reads the page in your own browser (the coupon box, its Apply button and the order total) and nothing from the page leaves your browser. It never rewrites links or adds referral tags, and it holds no OpenVibe sign-in: to report from it you <a href="/connect-extension">connect it</a> with a token that can only look up and report, and that you can revoke at any time.</p>`;
 }
 
 function submitForm({ values = {}, errs = [], csrf, viewer, merchantName = null }) {
@@ -233,11 +233,11 @@ function submitted({ coupon, merchant, duplicate }) {
 }
 
 function connect({ viewer, installs, csrf, created, errs = [] }) {
-    const intro = h`<h1>Connect the browser helper</h1>
-<p class="lede">The OpenVibe browser helper shows codes for the shop you are on. It works without connecting; connecting lets it report whether a code worked, as you.</p>
+    const intro = h`<h1>Connect the OpenVibe Companion</h1>
+<p class="lede">The <a href="/companion">OpenVibe Companion</a> shows and tries codes for the shop you are on. It works without connecting; connecting lets it report whether a code worked, as you, so the next person sees it.</p>
 <ul>
-<li>It reads only the <strong>hostname</strong> of the current tab, and only when you open it.</li>
-<li>It never reads page content, never sends full addresses and has no access to your OpenVibe account: the token below can only look up codes and (if you allow it) report on them.</li>
+<li>It sends this site only the <strong>hostname</strong> of the current tab, and only when you open it.</li>
+<li>When you ask it to try codes, it reads the checkout page in your browser; nothing from the page is sent anywhere. It never sends full addresses and has no access to your OpenVibe account: the token below can only look up codes and (if you allow it) report on them.</li>
 <li>Revoking a token here takes effect on its next request.</li>
 </ul>`;
     if (!viewer || viewer.kind !== 'user') return h`${intro}<p><a href="/auth/login?next=%2Fconnect-extension">Sign in with OpenVibe</a> to create a token.</p>`;
@@ -256,6 +256,34 @@ ${installs.length ? h`<table class="installs"><thead><tr><th>Name</th><th>Token<
 <td>${i.label}</td><td><code>${i.token_hint}…</code></td><td>${i.scopes.map((s) => (s === 'coupons.report' ? 'look up, report' : '')).filter(Boolean)[0] || 'look up'}</td>
 <td>${i.created_at.slice(0, 10)}</td><td>${i.last_used_at ? i.last_used_at.slice(0, 10) : 'never'}</td>
 <td>${i.active ? h`<form method="post" action="/connect-extension/${i.id}/revoke">${hidden(csrf)}<button type="submit">Revoke</button></form>` : (i.revoked_at ? 'revoked' : 'expired')}</td></tr>`)}</tbody></table>` : h`<p class="empty">None yet.</p>`}`;
+}
+
+const COMPANION_RELEASE = 'https://github.com/OpenVibers/OpenVibe.Extensions/releases/latest';
+const COMPANION_SOURCE = 'https://github.com/OpenVibers/OpenVibe.Extensions/tree/main/browser';
+
+/**
+ * /companion below its showcase (server/http/public.js draws the hero and the feature cards): what the OpenVibe
+ * Companion (OpenVibers/OpenVibe.Extensions `browser/`) sees and sends, how to install it, connecting it.
+ */
+function companion() {
+    return h`<h2 id="privacy">What it can see, and what it sends</h2>
+<ul>
+<li><strong>Permissions:</strong> the active tab (only after you click it), running its own code there when you press a button, and its own storage. It has no access to other tabs, your history or cookies, and no background process.</li>
+<li><strong>Sent to OpenVibe.Coupons:</strong> the tab's hostname when you open it (for example <code>shop.example</code>), and a worked or did not work report when you have connected it and say so.</li>
+<li><strong>Read from the page:</strong> the tab's address and title when you open it; the checkout page's coupon box, Apply button and total only when you press “Try these codes on this page”. Nothing read from the page leaves your browser.</li>
+<li><strong>Stored:</strong> only the optional connection token, on that device.</li>
+</ul>
+<h2 id="install">Install it</h2>
+<p>It is not in the browser stores yet, so it installs from its release file:</p>
+<ol>
+<li>Download the zip from the <a href="${COMPANION_RELEASE}">latest release</a> and unzip it.</li>
+<li><strong>Chrome, Edge or Brave:</strong> open <code>chrome://extensions</code>, turn on Developer mode, choose “Load unpacked” and pick the unzipped folder.</li>
+<li><strong>Firefox:</strong> open <code>about:debugging</code>, choose “This Firefox”, then “Load Temporary Add-on”, and pick the <code>manifest.json</code> in the folder.</li>
+<li>Pin it to the toolbar, open a shop's site and click it.</li>
+</ol>
+<h2>Connect it (optional)</h2>
+<p>Without connecting, it looks up and tries codes. <a href="/connect-extension">Connect it</a> to report whether a code worked, so the labels stay honest for everyone. The token can only look up and report, and you can revoke it at any time.</p>
+<p class="meta">Source code and the full privacy table: <a href="${COMPANION_SOURCE}">OpenVibers/OpenVibe.Extensions</a>. How codes are labelled: <a href="/about">the method</a>.</p>`;
 }
 
 function watching({ merchants }) {
@@ -296,4 +324,4 @@ function message({ heading, text, action }) {
     return h`<h1>${heading}</h1><p>${text}</p>${action ? h`<p><a href="${action.href}">${action.label}</a></p>` : ''}`;
 }
 
-module.exports = { home, merchant, couponPage, couponCard, about, submitForm, submitted, connect, watching, staff, message, STATUS_LABEL, SITE_SUMMARY };
+module.exports = { home, merchant, couponPage, couponCard, about, submitForm, submitted, connect, companion, COMPANION_RELEASE, watching, staff, message, STATUS_LABEL, SITE_SUMMARY };
