@@ -16,7 +16,7 @@ const BUDGETS = {
     htmlBrotliKB: 7.5,   // 6.2 (4.5 before the showcase)
     jsFiles: 5,   // 5 (openvibe-shared 2.9 shell: web-runtime.js)
     jsRawKB: 250,   // 246.2 with openvibe-shared 4.2.x (Ask Actor in the navbar, 2026-10-15); 239.1 (212.2 before the shell's web-runtime.js)
-    jsBrotliKB: 59,   // 56.3 (49.9 before web-runtime.js)
+    jsBrotliKB: 60,   // 59.1 with openvibe-shared 4.4.0 (every site in the launcher, 2026-10-17); 56.3 (49.9 before web-runtime.js)
     cssFiles: 2,   // 2 (coupons.css + showcase.css, home only)
     cssRawKB: 19,   // 18.1 (14.8 before 2026-10-15's search bar, offers list and shop chips; 4.4 before showcase.css)
     cssBrotliKB: 4.5,   // 3.6 (1.2 before showcase.css)
