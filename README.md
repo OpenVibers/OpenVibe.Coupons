@@ -315,7 +315,7 @@ What Coupons calls elsewhere, and with which grant, is under
   `openvibe-sdk/db`; Valkey holds the per-actor limit counters (optional: without `VALKEY_URL` they count per process).
 - **Packages** (all pinned by release tarball): `openvibe-publishing` v1.3.0 (seo gate, ssr,
   index-hooks), `openvibe-contracts` v0.97.0, `openvibe-shared` v4.3.0 (Frame, app icon, footer,
-  legal, release, metrics, ready, seo), `openvibe-sdk` v0.50.1 (events outbox, service tokens,
+  legal, release, metrics, ready, seo), `openvibe-sdk` v0.51.1 (events outbox, service tokens,
   per-actor limits).
 - **OpenVibe.Network:**
   - SSO: an OAuth client `coupons` with redirect `https://openvibe.coupons/auth/callback`
@@ -484,7 +484,7 @@ Part of the [OpenVibe network](https://openvibe.network). Built in the open by [
 
 <!-- versions:start -->
 - openvibe-contracts: v0.200.0
-- openvibe-sdk: v0.50.1
+- openvibe-sdk: v0.51.1
 - openvibe-shared: v4.3.0
 - openvibe-publishing: v1.3.0
 <!-- versions:end -->
