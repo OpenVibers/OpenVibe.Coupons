@@ -270,7 +270,7 @@ function companion() {
 <ul>
 <li><strong>Permissions:</strong> the active tab (only after you click it), running its own code there when you press a button, and its own storage. It has no access to other tabs, your history or cookies, and no background process.</li>
 <li><strong>Sent to OpenVibe.Coupons:</strong> the tab's hostname when you open it (for example <code>shop.example</code>), and a worked or did not work report when you have connected it and say so.</li>
-<li><strong>Read from the page:</strong> the tab's address and title when you open it; the checkout page's coupon box, Apply button and total only when you press “Try these codes on this page”. Nothing read from the page leaves your browser.</li>
+<li><strong>Read from the page:</strong> the tab's address and title when you open it; the checkout page's coupon box, Apply button and total only when you press “Try these codes on this page”; a review site's rating only when you press “Save its rating to OpenVibe Reviews”, which opens openvibe.reviews with it in a tab you see. Nothing else read from the page leaves your browser.</li>
 <li><strong>Stored:</strong> only the optional connection token, on that device.</li>
 </ul>
 <h2 id="install">Install it</h2>

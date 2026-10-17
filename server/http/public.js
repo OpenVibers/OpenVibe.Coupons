@@ -163,6 +163,7 @@ function createPublicRoutes(ctx) {
                 { icon: 'ov:check', title: 'Try these codes on this page', text: 'At checkout, one button types the codes into the shop\'s own coupon box, presses Apply and reads the total before and after. Codes reported not working are skipped; at most ten are tried.' },
                 { icon: 'ov:food', title: 'Compare delivery apps', text: 'On DoorDash, Uber Eats, Grubhub, Seamless, Caviar or Instacart it opens the same restaurant on every app through OpenVibe.Food.', href: 'https://openvibe.food/delivery' },
                 { icon: 'ov:rent', title: 'Rentals: keep them, check the rent', text: 'On Craigslist, Zillow and other listing sites, one click keeps the listing on your OpenVibe.Rent board, and another checks its rent against what the city usually costs.', href: 'https://openvibe.rent/in' },
+                { icon: 'ov:reviews', title: 'Review sites: bring the rating', text: 'On Glassdoor, Indeed, Yelp, the BBB, Trustpilot, Google Maps or Tripadvisor, one click reads the rating the page shows and opens OpenVibe.Reviews to check and save it, beside that site\'s link.', href: 'https://openvibe.reviews' },
                 { icon: 'ov:watch', title: 'Watch a page', text: 'Opens a watch on OpenVibe.Watch for the page, so you hear when a price, a stock line or a listing changes.', href: 'https://openvibe.watch' },
                 { icon: 'ov:shield', title: 'No referral games', text: 'It never replaces affiliate tags, never adds its own, never opens tabs behind your back and never earns from your shopping.' },
             ],
@@ -171,7 +172,7 @@ function createPublicRoutes(ctx) {
     router.get('/companion', (req, res) => {
         send(req, res, 200, {
             title: 'The OpenVibe Companion browser extension', decision: pageDecision('/companion'), canonical: `${config.baseUrl}/companion`,
-            description: 'A free, open-source extension for Chrome, Edge, Brave and Firefox: coupon codes for the shop you are on, tried when you ask, delivery apps compared and rentals kept on your board. It never rewrites referral links.',
+            description: 'A free, open-source extension for Chrome, Edge, Brave and Firefox: coupon codes for the shop you are on, tried when you ask, delivery apps compared, rentals kept on your board and review sites’ ratings brought to OpenVibe.Reviews. It never rewrites referral links.',
             styles: [showcase.STYLESHEET],
             body: companionShowcase() + pages.companion(),
         }, { cacheable: true });
