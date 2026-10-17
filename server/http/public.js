@@ -58,9 +58,13 @@ function createPublicRoutes(ctx) {
 
     /** A decision for pages that are not a shop or a code. */
     function pageDecision(path, { indexable = true, query = [] } = {}) {
+        // A request path that would leave the origin ("//host/x", sent by scanners) has no canonical of its own:
+        // canonicalUrl() refuses it, which turned a 404 into a 500. It gets the site's root, never indexed.
+        let canonicalUrl;
+        try { canonicalUrl = seo.canonicalUrl(config.baseUrl, path, { query }); } catch { canonicalUrl = seo.canonicalUrl(config.baseUrl, '/'); indexable = false; }
         return seo.evaluate({
             state: indexable ? 'published' : 'draft', visibility: indexable ? 'public' : 'private',
-            canonicalUrl: seo.canonicalUrl(config.baseUrl, path, { query }), wordCount: 0,
+            canonicalUrl, wordCount: 0,
         }, { policy: { minWords: 0 }, now: store.now() });
     }
 
