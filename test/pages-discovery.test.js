@@ -193,6 +193,7 @@ const { boot, check, done } = require('./helpers/boot');
         assert.strictEqual(rel.json().metrics_url, '/release-metrics');
         assert.strictEqual((await t.get('/nope')).status, 404);
         assert.strictEqual((await t.get('/m/nope')).status, 404);
+        assert.strictEqual((await t.get('//evil.example/x')).status, 404, 'a path that would leave the origin is a 404, not a 500 (scanners, 10-16)');
         assert.strictEqual((await t.get('/c/cpn_00000000000000000000000000')).status, 404);
         const api404 = await t.get('/api/v1/nope');
         assert.strictEqual(api404.status, 404);
