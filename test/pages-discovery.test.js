@@ -80,6 +80,10 @@ const { boot, check, done } = require('./helpers/boot');
         const page = (await t.get(`/c/${codeId}`)).text;
         assert.strictEqual((page.match(/<h1\b/g) || []).length, 1, 'the code page has one h1: its title');
         assert.match(page, /<h1 class="coupon-title">/);
+        // Its description is its own facts, not the same "Validity unknown. Expiry unknown." as every other code.
+        const desc = (page.match(/<meta name="description" content="([^"]*)">/) || [])[1] || '';
+        assert.match(desc, /^Coupon code VEG5 for .+ at .+: (Validity unknown|Reported working|Reported not working), (expires \d{4}-\d{2}-\d{2}|no expiry stated)[^"]*\.$/, desc);
+        assert.ok(desc.length <= 160, desc);
         const blocks = [...page.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
         assert.deepStrictEqual(blocks.map((b) => b['@type']).sort(), ['BreadcrumbList', 'WebPage']);
         const json = (await t.get(`/c/${codeId}.json`)).json();
