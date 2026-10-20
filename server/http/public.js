@@ -34,6 +34,22 @@ const { SCOPES } = require('../auth/capabilities');
 
 const COUPON_ID_RE = /^cpn_[0-9A-HJKMNP-TV-Z]{26}$/;
 
+/**
+ * A code page's meta description, from the code's own facts and never its submitted description: the code, what it
+ * is for and where, then its status, expiry, minimum spend, new-customer rule and recent reports, kept under 160
+ * characters. It was "Validity unknown. Expiry unknown." on nearly every code page, the same line 156 times.
+ */
+function couponDescription(v, m) {
+    const facts = [pages.STATUS_LABEL[v.status], v.expiry.known ? `expires ${v.expiry.expires_at.slice(0, 10)}` : 'no expiry stated'];
+    const min = (v.restrictions || []).find((r) => r.kind === 'min_spend');
+    if (min) facts.push(`minimum spend ${min.amount}`);
+    if ((v.restrictions || []).some((r) => r.kind === 'new_customers_only')) facts.push('new customers only');
+    const { worked = 0, failed = 0, window_days: days } = v.reports || {};
+    if (worked || failed) facts.push(`${worked} worked and ${failed} failed in ${days} days`);
+    const text = `Coupon code ${v.code} for ${v.title} at ${m.name}: ${facts.join(', ')}.`;
+    return text.length <= 160 ? text : `${text.slice(0, 159).replace(/\s+\S*$/, '')}…`;
+}
+
 function createPublicRoutes(ctx) {
     const { config, store, merchants, coupons, reports, watches, installs, publication, viewers, moderation, actorLimits } = ctx;
     const router = express.Router();
@@ -267,7 +283,7 @@ function createPublicRoutes(ctx) {
         const flashMsg = FLASH[req.query.done] || null;
         send(req, res, 200, {
             title: `${v.code} — ${v.title} at ${m.name}`,
-            description: `${pages.STATUS_LABEL[v.status]}. ${v.expiry.known ? `Expires ${v.expiry.expires_at.slice(0, 10)}.` : 'Expiry unknown.'}`,
+            description: couponDescription(v, m),
             decision: publication.couponDecision(c, m), canonical: v.url, jsonLd: jsonLd(m, v),
             body: pages.couponPage({ v, m, history: await coupons.history(c.id), viewer: req.viewer, csrf: csrf(req), back: `/c/${c.id}`, flashMsg }),
         }, { cacheable: !flashMsg });
