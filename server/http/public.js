@@ -158,7 +158,7 @@ function createPublicRoutes(ctx) {
         const faq = home.faqItems({ windowDays: confidence.WINDOW_DAYS });
         const listed = [...working, ...ending, ...recent];
         send(req, res, 200, {
-            title: 'Coupon codes with end dates and people\'s reports',
+            title: 'Coupon codes with end dates and reports',
             description: 'Promo codes for online shops, each with the deal it is for, its stated end date and what people reported when they tried it. Never called working without reports.',
             decision: pageDecision('/'), canonical: `${config.baseUrl}/`,
             // The service's own one-line summary: the shell turns it into the ai-summary meta and the WebPage JSON-LD.
