@@ -125,6 +125,7 @@ const { boot, check, done } = require('./helpers/boot');
             assert.ok(!ext.json().coupons.some((x) => x.code === 'UXBMXG9V') && ext.json().merchant.active_codes === 0, `an extension never does (${headers.origin})`);
             assert.strictEqual((await t.get(`/api/v1/coupons/${c.id}`, { headers })).status, 404);
             assert.match(ext.headers.get('vary') || '', /Origin/);
+            assert.strictEqual(ext.headers.get('cloudflare-cdn-cache-control'), 'no-store', 'the edge never keeps an answer that differs by caller');
         }
     });
 
