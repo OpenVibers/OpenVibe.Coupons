@@ -55,9 +55,20 @@ function createApi(ctx) {
         return config.extensionOrigins.includes('moz-extension://*') && MOZ_EXTENSION_RE.test(origin);
     }
 
+    /**
+     * These answers differ for a browser extension (source-policy.js), and Cloudflare keys its cache on the URL alone
+     * (it ignores Vary): the edge must never keep one, or an extension could be handed the page-caller's answer.
+     * Browsers still cache them (Cache-Control, Vary: Origin).
+     */
+    function byOrigin(res) {
+        res.vary('Origin');
+        res.set('CDN-Cache-Control', 'no-store');
+        res.set('Cloudflare-CDN-Cache-Control', 'no-store');
+    }
+
     /** CORS for the lookup routes only: exact configured extension origins, never credentials. */
     function lookupCors(req, res, next) {
-        res.vary('Origin');
+        byOrigin(res);
         const origin = req.get('origin');
         if (extensionOriginAllowed(origin)) {
             res.set('Access-Control-Allow-Origin', origin);
@@ -154,7 +165,7 @@ function createApi(ctx) {
 
     router.get('/merchants/:id', lookupLimiter, guard(CAPABILITIES.COUPON_LOOKUP, { scope: SCOPES.LOOKUP }), reads, run(async (req, res) => {
         const m = await activeMerchant(req.params.id);
-        res.vary('Origin');
+        byOrigin(res);
         publicCache(res);
         return { merchant: await merchantView(m, req) };
     }));
@@ -164,7 +175,7 @@ function createApi(ctx) {
         const m = c && await merchants.byId(c.merchant_id);
         if (!c || !m || m.status !== 'active' || c.review_state !== 'published' || c.status === 'disabled') throw new ApiError(404, 'coupon.not_found', 'no such code');
         const v = await coupons.view(c, { merchant: m });
-        res.vary('Origin');
+        byOrigin(res);
         if (v.extension_excluded && fromExtension(req)) throw new ApiError(404, 'coupon.not_found', 'no such code');
         publicCache(res);
         return { coupon: v, merchant: await merchantView(m, req) };
