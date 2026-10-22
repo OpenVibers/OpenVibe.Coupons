@@ -21,7 +21,9 @@
  *   POST /merchants/:id/status           coupons.merchant.manage   active | disabled
  *
  * Every lookup response is the same bytes for every caller: it holds no data about the caller or
- * any other person (no submitter, no reporter, no install).
+ * any other person (no submitter, no reporter, no install). One difference by kind of caller: a browser
+ * extension (an extension Origin or an install token) never gets a code whose source's terms keep it out of
+ * browser extensions (DealNews' feed, domain/source-policy.js), so these answers vary on Origin.
  */
 const express = require('express');
 const rateLimit = require('express-rate-limit');
@@ -31,6 +33,7 @@ const { CAPABILITIES, SCOPES } = require('../auth/capabilities');
 const { ApiError, run, jsonBody } = require('./errors');
 const { hosts } = require('openvibe-publishing/ingest');
 const cache = require('openvibe-shared/cache-policy');
+const { fromExtension } = require('../domain/source-policy');
 
 const MOZ_EXTENSION_RE = /^moz-extension:\/\/[0-9a-f-]{36}$/;
 
@@ -86,7 +89,16 @@ function createApi(ctx) {
 
     const publicCache = (res) => res.set('Cache-Control', 'public, max-age=60');
 
-    async function merchantView(m) {
+    /**
+     * A merchant's active codes as views. A browser extension never gets a code its source keeps out of extensions
+     * (DealNews' feed terms, domain/source-policy.js); the count it sees is of the codes it gets.
+     */
+    async function activeViews(m, req) {
+        const all = await Promise.all((await coupons.active(m.id)).map(async (c) => await coupons.view(c, { merchant: m })));
+        return req && fromExtension(req) ? all.filter((v) => !v.extension_excluded) : all;
+    }
+
+    async function merchantView(m, req = null) {
         return {
             id: m.id,
             slug: m.slug,
@@ -94,7 +106,7 @@ function createApi(ctx) {
             homepage_url: m.homepage_url,
             url: publication.merchantUrl(m),
             domains: (await merchants.domains(m)).map((d) => ({ host: d.host, include_subdomains: Boolean(d.include_subdomains), path_prefix: d.path_prefix || null })),
-            active_codes: await coupons.activeCount(m.id),
+            active_codes: req && fromExtension(req) ? (await activeViews(m, req)).length : await coupons.activeCount(m.id),
             hints: (await coupons.merchantHints(m.id)).map((h) => h.text),
         };
     }
@@ -130,28 +142,32 @@ function createApi(ctx) {
             host: found.host,
             registrable_domain: found.registrable,
             matched_rule: { host: found.rule.host, include_subdomains: Boolean(found.rule.include_subdomains), path_prefix: found.rule.path_prefix || null },
-            merchant: await merchantView(found.merchant),
+            merchant: await merchantView(found.merchant, req),
         };
     }));
 
     router.get('/merchants/:id/coupons', lookupCors, lookupLimiter, guard(CAPABILITIES.COUPON_LOOKUP, { scope: SCOPES.LOOKUP }), reads, run(async (req, res) => {
         const m = await activeMerchant(req.params.id);
         publicCache(res);
-        return { merchant: await merchantView(m), coupons: await Promise.all((await coupons.active(m.id)).map(async (c) => await coupons.view(c, { merchant: m }))) };
+        return { merchant: await merchantView(m, req), coupons: await activeViews(m, req) };
     }));
 
     router.get('/merchants/:id', lookupLimiter, guard(CAPABILITIES.COUPON_LOOKUP, { scope: SCOPES.LOOKUP }), reads, run(async (req, res) => {
         const m = await activeMerchant(req.params.id);
+        res.vary('Origin');
         publicCache(res);
-        return { merchant: await merchantView(m) };
+        return { merchant: await merchantView(m, req) };
     }));
 
     router.get('/coupons/:id', lookupLimiter, guard(CAPABILITIES.COUPON_LOOKUP, { scope: SCOPES.LOOKUP }), reads, run(async (req, res) => {
         const c = await coupons.get(req.params.id);
         const m = c && await merchants.byId(c.merchant_id);
         if (!c || !m || m.status !== 'active' || c.review_state !== 'published' || c.status === 'disabled') throw new ApiError(404, 'coupon.not_found', 'no such code');
+        const v = await coupons.view(c, { merchant: m });
+        res.vary('Origin');
+        if (v.extension_excluded && fromExtension(req)) throw new ApiError(404, 'coupon.not_found', 'no such code');
         publicCache(res);
-        return { coupon: await coupons.view(c, { merchant: m }), merchant: await merchantView(m) };
+        return { coupon: v, merchant: await merchantView(m, req) };
     }));
 
     // ── Reports ─────────────────────────────────────────────

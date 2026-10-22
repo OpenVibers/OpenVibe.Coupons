@@ -52,7 +52,9 @@ const count = (html, re) => (html.match(re) || []).length;
         const head = home.slice(0, home.indexOf('</head>'));
         assert.strictEqual(count(head, /<title>/g), 1);
         assert.ok(head.includes('<link rel="canonical" href="https://openvibe.coupons/">'));
-        assert.strictEqual(count(head, /<script type="application\/ld\+json">/g), 1, 'one JSON-LD script on the home page');
+        // WebPage (the summary), WebSite with its search, FAQPage (the questions shown), and ItemList when codes are listed.
+        assert.ok(count(head, /<script type="application\/ld\+json">/g) >= 3, 'the home page\'s JSON-LD');
+        for (const type of ['"@type":"WebPage"', '"@type":"WebSite"', '"@type":"FAQPage"']) assert.ok(head.includes(type), type);
         for (const [type, href, title] of [['application/rss+xml', '/feed.xml', 'New codes (RSS)'], ['application/atom+xml', '/atom.xml', 'New codes (Atom)'], ['application/feed+json', '/feed.json', 'New codes (JSON Feed)']]) {
             assert.ok(head.includes(`<link rel="alternate" type="${type}" href="${href}" title="${title}">`), `${href} feed link`);
         }

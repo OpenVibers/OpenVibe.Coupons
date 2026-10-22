@@ -27,6 +27,7 @@ const cache = require('openvibe-shared/cache-policy');
 const seo = require('openvibe-publishing/seo');
 const { renderPage } = require('../render/layout');
 const pages = require('../render/pages');
+const home = require('../render/home');
 const { csrfToken, checkCsrf } = require('../auth/forms');
 const { ApiError } = require('./errors');
 const confidence = require('../domain/confidence');
@@ -127,41 +128,63 @@ function createPublicRoutes(ctx) {
         decision: pageDecision('/updates'), canonical: `${config.baseUrl}/updates`,
         body: frame.updatesBody({ service: 'coupons', siteName: 'OpenVibe.Coupons' }) + `<script src="${ovServe.url('shipped.js')}" defer></script>`,
     }, { cacheable: true }));
-    /** The product's own words above the shops: only what OpenVibe.Coupons does today (the News and Blog homes' kit). */
-    function couponsShowcase() {
-        return showcase.hero({
-            eyebrow: 'OpenVibe.Coupons',
-            title: 'Coupon codes,', accent: 'honestly labelled',
-            lede: 'Codes for online shops with their restrictions, their expiry (or "unknown") and what people reported when they tried them. A code is only ever called working because people said it worked recently.',
-            actions: [{ label: 'Find a shop', href: '#q', primary: true }, { label: 'Get the browser extension', href: '/companion' }, { label: 'Submit a code', href: '/submit' }],
-        }) + showcase.features({
-            title: 'What every code tells you',
-            items: [
-                { icon: 'ov:coupons', title: 'The right shop', text: 'Each shop lists the domains and paths it covers, so a code is matched to the site you are on.' },
-                { icon: 'ov:docs', title: 'Restrictions stated', text: 'Minimum spend, new customers only, the products it applies to: written down, not hidden.' },
-                { icon: 'ov:history', title: 'Honest expiry', text: 'An expiry date when there is one, and "unknown" when there is not.' },
-                { icon: 'ov:community', title: 'Reports from people', text: 'Worked or did not work, recently: the status comes from what people said when they tried it.' },
-                { icon: 'ov:plug', title: 'Tried for you, no referral games', text: 'The OpenVibe Companion extension tries the codes in the shop\'s coupon box when you ask, and never rewrites referral links.', href: '/companion' },
+    // The front page (render/home.js). Its cards: codes people reported working, then what ends soon, then the newest;
+    // a code shows once.
+    const DAY = 24 * 3600 * 1000;
+    const HOME_CARDS = 8;
+    async function homePage(req, res) {
+        const now = store.now();
+        const [stats, workingRows, endingRows, recentRows, shops] = await Promise.all([
+            coupons.homeStats({ endingWithinMs: 7 * DAY, addedSinceMs: 7 * DAY, reportsSinceMs: confidence.WINDOW_DAYS * DAY }),
+            coupons.reportedWorking(HOME_CARDS), coupons.endingSoon(7 * DAY, HOME_CARDS), coupons.recentActive(HOME_CARDS * 3),
+            merchants.listActive({ limit: 500 }),
+        ]);
+        const byId = new Map(shops.map((m) => [m.id, m]));
+        const shown = new Set();
+        const take = async (rows) => {
+            const keep = [];
+            for (const c of rows) {
+                if (keep.length >= HOME_CARDS || shown.has(c.id) || !byId.has(c.merchant_id)) continue;
+                shown.add(c.id);
+                keep.push(c);
+            }
+            return await Promise.all(keep.map(async (c) => ({ view: await coupons.view(c, { merchant: byId.get(c.merchant_id) }), merchant: byId.get(c.merchant_id) })));
+        };
+        const working = await take(workingRows);
+        const ending = await take(endingRows);
+        const recent = await take(recentRows);
+        const counts = await coupons.activeCounts(shops.map((m) => m.id));
+        const list = shops.map((m) => ({ merchant: m, active: counts.get(m.id) || 0 }));
+        const faq = home.faqItems({ windowDays: confidence.WINDOW_DAYS });
+        const listed = [...working, ...ending, ...recent];
+        send(req, res, 200, {
+            title: 'Coupon codes with end dates and reports',
+            description: 'Promo codes for online shops, each with the deal it is for, its stated end date and what people reported when they tried it. Never called working without reports.',
+            decision: pageDecision('/'), canonical: `${config.baseUrl}/`,
+            // The service's own one-line summary: the shell turns it into the ai-summary meta and the WebPage JSON-LD.
+            summary: pages.SITE_SUMMARY, styles: [showcase.STYLESHEET], bodyClass: 'home',
+            feeds: [{ type: 'rss', href: '/feed.xml', title: 'New codes (RSS)' }, { type: 'atom', href: '/atom.xml', title: 'New codes (Atom)' }, { type: 'json', href: '/feed.json', title: 'New codes (JSON Feed)' }],
+            jsonLd: [
+                { '@context': 'https://schema.org', '@type': 'WebSite', name: 'OpenVibe.Coupons', url: `${config.baseUrl}/`, potentialAction: { '@type': 'SearchAction', target: `${config.baseUrl}/?q={q}`, 'query-input': 'required name=q' } },
+                ...(listed.length ? [{ '@context': 'https://schema.org', '@type': 'ItemList', name: 'Coupon codes on OpenVibe.Coupons', itemListElement: listed.map((x, i) => ({ '@type': 'ListItem', position: i + 1, url: x.view.url, name: `${x.view.code}: ${x.view.title} at ${x.merchant.name}` })) }] : []),
+                home.faqJsonLd(faq),
             ],
-        });
+            body: home.homePage({ now, stats, working, ending, recent, merchants: list, total: list.length, faq, windowDays: confidence.WINDOW_DAYS }),
+        }, { cacheable: true });
     }
 
     router.get('/', async (req, res) => {
         const q = typeof req.query.q === 'string' ? req.query.q.slice(0, 60) : '';
+        if (!q) return await homePage(req, res);
+        // A shop search: its matches, then the newest codes and every shop (noindex).
         const recent = await Promise.all((await coupons.recentActive(12)).map(async (c) => ({ coupon: c, merchant: await merchants.byId(c.merchant_id) })));
         const shops = await merchants.listActive({ limit: 500 });
         const counts = await coupons.activeCounts(shops.map((m) => m.id));
         const list = shops.map((m) => ({ merchant: m, active: counts.get(m.id) || 0 }));
-        const decision = q ? pageDecision('/', { indexable: false }) : pageDecision('/');
         send(req, res, 200, {
-            title: q ? `Search: ${q}` : null, decision, canonical: `${config.baseUrl}/`,
-            // The service's own one-line summary: on "/" the shell turns it into the ai-summary meta
-            // and the page's WebPage JSON-LD. A search result page is noindex and carries neither.
-            ...(q ? {} : { summary: pages.SITE_SUMMARY }),
-            // The front page opens with what Coupons is for (openvibe-shared/showcase); a search result page does not.
-            ...(q ? {} : { styles: [showcase.STYLESHEET] }),
+            title: `Search: ${q}`, decision: pageDecision('/', { indexable: false }), canonical: `${config.baseUrl}/`,
             feeds: [{ type: 'rss', href: '/feed.xml', title: 'New codes (RSS)' }, { type: 'atom', href: '/atom.xml', title: 'New codes (Atom)' }, { type: 'json', href: '/feed.json', title: 'New codes (JSON Feed)' }],
-            body: (q ? '' : couponsShowcase()) + pages.home({ merchants: list, recent, q, results: q ? await merchants.search(q) : [], total: list.length, showcase: !q }),
+            body: pages.home({ merchants: list, recent, q, results: await merchants.search(q), total: list.length, showcase: false }),
         }, { cacheable: true });
     });
 

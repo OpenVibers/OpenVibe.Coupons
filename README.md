@@ -162,7 +162,7 @@ The code is in `server/domain/hosts.js` and `server/domain/psl.js`. The tests ar
 
 | Route | What |
 |---|---|
-| `/` | Shops with their active-code counts, recently added codes, and search (`?q=`, noindex). |
+| `/` | The front page (`server/render/home.js`): a shop search and the site's numbers (active codes, shops with one, ending this week, added this week, with a stated end, people's reports), then codes reported working, ending soon and new (each a ticket with the code, the shop, what it is for, its end or "No end date stated" and its source's attribution; a code shows once), the shops, the Companion, what every code tells you, and six questions (FAQPage JSON-LD). A section with nothing to show is left out. A search (`?q=`) lists matching shops (noindex). |
 | `/about` | Statuses, the confidence formula, expiry, privacy and the browser helper. |
 | `/m/:slug`, `/m/:slug.json` | A shop, and the same as data. The page shows active codes with status, confidence, the last report time (to the hour), restrictions, expiry or "unknown", evidence and hints. Recently ended codes are listed apart. |
 | `/c/:id`, `/c/:id.json` | One code, with its status history. Expired: served but noindex. Taken down: 410. |
@@ -210,6 +210,13 @@ use a visitor's session against the API. Errors are RFC 9457 problems.
 | `GET /merchants/resolve?host=` | Anyone. Anonymous callers are rate-limited per IP, installs per install. | `coupons.merchant.resolve` / `coupons.lookup` |
 | `GET /merchants/:id/coupons` | Anyone (as above). | `coupons.coupon.lookup` / `coupons.lookup` |
 | `GET /merchants/:id`, `GET /coupons/:id` | Anyone. | `coupons.coupon.lookup` / `coupons.lookup` |
+
+A source's terms can keep its codes out of browser extensions (`server/domain/source-policy.js`): DealNews' feed terms
+say its content may not be used in a browser extension made available for public use, so a code from
+`dealnews-coupon-codes` is never in an answer to an extension (an `Origin` of `chrome-extension://`, `moz-extension://`
+or another `*-extension://` scheme, or an install's `cpx_` token): left out of `/merchants/:id/coupons` and of
+`active_codes`, and `GET /coupons/:id` answers 404. These answers vary on `Origin`. Every code view carries
+`attribution` (`{ text: 'DealNews', url }`, shown as "via DealNews" wherever the code is) and `extension_excluded`.
 | `POST /coupons/:id/report` `{outcome, reason?}` | A person: a Bearer Network token, an install token with `coupons.report`, or a service acting for `X-OV-Subject`. | `coupons.report.create` / `coupons.report` |
 | `POST /coupons/submit` `{merchant_id \| host \| url, code, title, description?, evidence_url?, expires?, expiry_basis?, restrictions?, hint?, ai_run_id?}` | A person, or `X-OV-Origin: ai` (held for review). Install tokens can't submit. | `coupons.coupon.submit` |
 | `POST /coupons/:id/status` `{status: disabled\|expired\|active, note?}` | Staff (Network admin, or `COUPONS_STAFF_SUBJECTS`) or a service. | `coupons.status.update` |
