@@ -109,6 +109,25 @@ const { boot, check, done } = require('./helpers/boot');
         assert.match(hold.detail, /the source names "Nowhere Shop"/);
     });
 
+    await check('DealNews\' feed terms: its codes say "via DealNews" on the site and never reach a browser extension', async () => {
+        const c = await t.ctx.store.db.prepare("SELECT * FROM coupons WHERE code = 'UXBMXG9V'").get();
+        await t.ctx.store.db.prepare("UPDATE coupons SET review_state = 'published' WHERE id = ?").run(c.id);
+        const v = await t.ctx.coupons.view(c);
+        assert.deepStrictEqual([v.attribution, v.extension_excluded], [{ text: 'DealNews', url: 'https://www.dealnews.com/' }, true]);
+        const page = await t.get(`/c/${c.id}`);
+        assert.ok(page.text.includes('Code via <a href="https://www.dealnews.com/" rel="nofollow noopener">DealNews</a>'), 'attributed on its page');
+        assert.ok((await t.get('/')).text.includes('via <a href="https://www.dealnews.com/" rel="nofollow noopener">DealNews</a>'), 'and on the front page');
+        const site = (await t.get(`/api/v1/merchants/${c.merchant_id}/coupons`)).json();
+        assert.ok(site.coupons.some((x) => x.code === 'UXBMXG9V') && site.merchant.active_codes === 1, 'a server or page caller gets it');
+        for (const headers of [{ origin: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop' }, { origin: 'moz-extension://0d3c5e2a-1111-2222-3333-444455556666' }]) {
+            const ext = await t.get(`/api/v1/merchants/${c.merchant_id}/coupons`, { headers });
+            assert.strictEqual(ext.status, 200);
+            assert.ok(!ext.json().coupons.some((x) => x.code === 'UXBMXG9V') && ext.json().merchant.active_codes === 0, `an extension never does (${headers.origin})`);
+            assert.strictEqual((await t.get(`/api/v1/coupons/${c.id}`, { headers })).status, 404);
+            assert.match(ext.headers.get('vary') || '', /Origin/);
+        }
+    });
+
     await check('a failed fetch changes nothing and is recorded', async () => {
         const before = (await t.ctx.store.db.prepare('SELECT COUNT(*) AS n FROM coupons').get()).n;
         const cursor = (await t.ctx.importer.state()).cursor;

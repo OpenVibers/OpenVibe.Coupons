@@ -21,7 +21,7 @@ const STATUS_LABEL = {
 };
 // The one-line summary of the service: /llms.txt and /llms-full.txt open with it, and the home page
 // hands it to the shell as its AI-readable summary (ai-summary meta and WebPage JSON-LD).
-const SITE_SUMMARY = 'Coupon codes for online shops with merchant/domain matching, restrictions, honest expiry and validity reports by people.';
+const SITE_SUMMARY = 'Coupon codes for online shops with merchant/domain matching, restrictions, honest expiry and validity reports by people; new codes from members and DealNews every hour.';
 const BASIS_LABEL = {
     evidence: 'as stated on the evidence page',
     submitter: 'according to the person who submitted it',
@@ -101,6 +101,7 @@ ${v.description ? h`<p>${v.description}</p>` : ''}
 ${restrictionsList(v.restrictions)}
 ${v.hints.length ? h`<ul class="hints">${v.hints.map((x) => h`<li>How to apply: ${x.text}</li>`)}</ul>` : ''}
 ${evidenceList(v.evidence)}
+${v.attribution ? h`<p class="meta">Code via <a href="${v.attribution.url}" rel="nofollow noopener">${v.attribution.text}</a></p>` : ''}
 ${v.origin === 'ai' ? h`<p class="disclosure">Extracted by an AI workflow from the evidence page and reviewed by staff before listing. Its validity comes only from people's reports.</p>` : ''}
 ${reportForms(v, opts)}
 </article>`;
@@ -324,4 +325,4 @@ function message({ heading, text, action }) {
     return h`<h1>${heading}</h1><p>${text}</p>${action ? h`<p><a href="${action.href}">${action.label}</a></p>` : ''}`;
 }
 
-module.exports = { home, merchant, couponPage, couponCard, about, submitForm, submitted, connect, companion, COMPANION_RELEASE, watching, staff, message, STATUS_LABEL, SITE_SUMMARY };
+module.exports = { home, shopsSection, merchant, couponPage, couponCard, about, submitForm, submitted, connect, companion, COMPANION_RELEASE, watching, staff, message, STATUS_LABEL, SITE_SUMMARY };

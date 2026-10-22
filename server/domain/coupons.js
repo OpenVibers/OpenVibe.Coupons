@@ -31,6 +31,8 @@ const { ApiError } = require('../http/errors');
 const confidence = require('./confidence');
 const { hosts } = require('openvibe-publishing/ingest');
 
+const { attributionOf, hidesFromExtension } = require('./source-policy');
+
 const ACTIVE_SQL = `c.review_state = 'published' AND c.status NOT IN ('expired','disabled')
                     AND (c.expires_at IS NULL OR c.expires_at > @now) AND m.status = 'active'`;
 
@@ -183,6 +185,19 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
                                    ORDER BY COALESCE(c.expired_at, c.expires_at) DESC LIMIT 10`),
         recentActive: db.prepare(`SELECT c.* FROM coupons c JOIN coupon_merchants m ON m.id = c.merchant_id WHERE ${ACTIVE_SQL}
                                   ORDER BY c.created_at DESC LIMIT @limit`),
+        // The front page (http/public.js): what ends soon, what people said works, and the numbers.
+        endingSoon: db.prepare(`SELECT c.* FROM coupons c JOIN coupon_merchants m ON m.id = c.merchant_id WHERE ${ACTIVE_SQL}
+                                AND c.expires_at IS NOT NULL AND c.expires_at <= @until ORDER BY c.expires_at, c.id LIMIT @limit`),
+        reportedWorking: db.prepare(`SELECT c.* FROM coupons c JOIN coupon_merchants m ON m.id = c.merchant_id WHERE ${ACTIVE_SQL}
+                                     AND c.status = 'reported_working' ORDER BY c.last_worked_at DESC NULLS LAST, c.id LIMIT @limit`),
+        homeStats: db.prepare(`SELECT COUNT(*) AS active,
+                                      COUNT(DISTINCT c.merchant_id) AS shops,
+                                      COUNT(*) FILTER (WHERE c.expires_at IS NOT NULL) AS dated,
+                                      COUNT(*) FILTER (WHERE c.expires_at IS NOT NULL AND c.expires_at <= @until) AS ending,
+                                      COUNT(*) FILTER (WHERE c.created_at > @since) AS added,
+                                      COUNT(*) FILTER (WHERE c.status = 'reported_working') AS working
+                                 FROM coupons c JOIN coupon_merchants m ON m.id = c.merchant_id WHERE ${ACTIVE_SQL}`),
+        reportsSince: db.prepare('SELECT COUNT(*) AS n FROM coupon_validation_reports WHERE updated_at > ?'),
         allActive: db.prepare(`SELECT c.* FROM coupons c JOIN coupon_merchants m ON m.id = c.merchant_id WHERE ${ACTIVE_SQL} ORDER BY c.created_at DESC LIMIT 50000`),
         activePage: db.prepare(`SELECT c.* FROM coupons c JOIN coupon_merchants m ON m.id = c.merchant_id WHERE ${ACTIVE_SQL} ORDER BY c.id LIMIT @limit OFFSET @offset`),
         allPage: db.prepare('SELECT c.* FROM coupons c ORDER BY c.id LIMIT @limit OFFSET @offset'),
@@ -548,6 +563,10 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
                 ...(s.sources_item_id ? { sources_item: s.sources_item_id, retrieved_at: iso(s.retrieved_at) } : {}),
             })),
             origin: c.origin,
+            // A source's required attribution ("via DealNews") and whether its terms keep the code out of browser
+            // extensions (domain/source-policy.js).
+            attribution: attributionOf(sources),
+            extension_excluded: hidesFromExtension(sources),
             created_at: iso(c.created_at),
             updated_at: iso(c.updated_at),
             expired_at: iso(c.expired_at),
@@ -563,6 +582,15 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
         active: async (merchantId) => await q.active.all({ merchant: merchantId, now: store.now() }),
         recentlyEnded: async (merchantId) => await q.recentlyEnded.all({ merchant: merchantId, now: store.now() }),
         recentActive: async (limit = 30) => await q.recentActive.all({ now: store.now(), limit }),
+        endingSoon: async (withinMs, limit = 8) => await q.endingSoon.all({ now: store.now(), until: store.now() + withinMs, limit }),
+        reportedWorking: async (limit = 8) => await q.reportedWorking.all({ now: store.now(), limit }),
+        /** The front page's numbers: active codes, shops with one, with a stated expiry, ending within, added since, reported working, reports. */
+        async homeStats({ endingWithinMs, addedSinceMs, reportsSinceMs }) {
+            const now = store.now();
+            const r = await q.homeStats.get({ now, until: now + endingWithinMs, since: now - addedSinceMs });
+            const n = (x) => Number(x) || 0;
+            return { active: n(r.active), shops: n(r.shops), dated: n(r.dated), ending: n(r.ending), added: n(r.added), working: n(r.working), reports: n((await q.reportsSince.get(now - reportsSinceMs)).n) };
+        },
         allActive: async () => await q.allActive.all({ now: store.now() }),
         /** One page of the active-results set (scripts/subscribe.js --reconcile). */
         activePage: async ({ limit = 200, offset = 0 } = {}) => await q.activePage.all({ now: store.now(), limit, offset }),
