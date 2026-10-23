@@ -166,7 +166,7 @@ function createPublicRoutes(ctx) {
             feeds: [{ type: 'rss', href: '/feed.xml', title: 'New codes (RSS)' }, { type: 'atom', href: '/atom.xml', title: 'New codes (Atom)' }, { type: 'json', href: '/feed.json', title: 'New codes (JSON Feed)' }],
             jsonLd: [
                 { '@context': 'https://schema.org', '@type': 'WebSite', name: 'OpenVibe.Coupons', url: `${config.baseUrl}/`, potentialAction: { '@type': 'SearchAction', target: `${config.baseUrl}/?q={q}`, 'query-input': 'required name=q' } },
-                ...(listed.length ? [{ '@context': 'https://schema.org', '@type': 'ItemList', name: 'Coupon codes on OpenVibe.Coupons', itemListElement: listed.map((x, i) => ({ '@type': 'ListItem', position: i + 1, url: x.view.url, name: `${x.view.code}: ${x.view.title} at ${x.merchant.name}` })) }] : []),
+                ...(listed.length ? [{ '@context': 'https://schema.org', '@type': 'ItemList', name: 'Coupon codes on OpenVibe.Coupons', itemListElement: listed.map((x, i) => ({ '@type': 'ListItem', position: i + 1, url: x.view.url, name: x.view.title })) }] : []),
                 home.faqJsonLd(faq),
             ],
             body: home.homePage({ now, stats, working, ending, recent, merchants: list, total: list.length, faq, windowDays: confidence.WINDOW_DAYS }),
