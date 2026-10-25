@@ -16,7 +16,7 @@ const BUDGETS = {
     htmlBrotliKB: 9,   // 7.9 with the curated front page; 6.2 (4.5 before the showcase)
     jsFiles: 5,   // 5 (openvibe-shared 2.9 shell: web-runtime.js)
     jsRawKB: 268,   // 263.4 with shared 4.11.0's seasonal navbar; 254.1 with openvibe-shared 4.9.0 (status text twins in every theme, 2026-10-23); 246.2 with openvibe-shared 4.2.x (Ask Actor in the navbar, 2026-10-15); 239.1 (212.2 before the shell's web-runtime.js)
-    jsBrotliKB: 63,   // 61.7 with shared 4.11.0's seasonal navbar; 59.1 with openvibe-shared 4.4.0 (every site in the launcher, 2026-10-17); 56.3 (49.9 before web-runtime.js)
+    jsBrotliKB: 67,   // 65.3 Shared 4.12.0: the light/dark switch, the seasonal mark and the theme pairs; 61.7 with shared 4.11.0's seasonal navbar; 59.1 with openvibe-shared 4.4.0 (every site in the launcher, 2026-10-17); 56.3 (49.9 before web-runtime.js)
     cssFiles: 2,   // 2 (coupons.css + showcase.css, home only)
     cssRawKB: 24,   // 21.8 with the front page's numbers, tickets and questions (2026-10-22); 18.1 before (4.4 before showcase.css)
     cssBrotliKB: 5.5,   // 5.0 with the front page (2026-10-22); 3.6 before (1.2 before showcase.css)
