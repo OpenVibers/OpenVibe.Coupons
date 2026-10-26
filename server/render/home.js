@@ -119,6 +119,7 @@ ${raw(showcase.features({
     }))}
 <section class="cp-sec" aria-labelledby="cp-faq"><div class="cp-head"><h2 id="cp-faq">Questions and answers</h2></div>
 <div class="cp-faq">${d.faq.map((x) => h`<details><summary>${x.q}</summary><p>${x.a}</p></details>`)}</div></section>
+${raw(showcase.network({ service: 'coupons' }))}
 ${raw(showcase.cta({ title: 'Have a code?', text: 'Share it with a link to where it was published. People report whether it works, and everyone sees what they said.', actions: [{ label: 'Submit a code', href: '/submit', primary: true }, { label: 'Find deals on OpenVibe.Deals', href: 'https://openvibe.deals/' }] }))}
 <p class="meta"><a href="/about">How statuses and confidence work</a> · <a href="/feed.xml">RSS</a> · <a href="/atom.xml">Atom</a> · <a href="/feed.json">JSON Feed</a></p>`;
 }
