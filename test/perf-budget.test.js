@@ -13,7 +13,7 @@ const { measure, check, format } = require('openvibe-shared/perf-budget');
 
 const BUDGETS = {
     htmlRawKB: 42,   // 37.3 with the Part of OpenVibe section (Shared 4.13, 2026-10-26); 33.7 with the curated front page (numbers, code tickets, the Companion, six questions and their JSON-LD; 2026-10-22); 24.1 with the showcase (17.4 before it; fresh database)
-    htmlBrotliKB: 9,   // 7.9 with the curated front page; 6.2 (4.5 before the showcase)
+    htmlBrotliKB: 11,   // 9.1 Shared 4.15.1 footer; 7.9 with the curated front page; 6.2 (4.5 before the showcase)
     jsFiles: 5,   // 5 (openvibe-shared 2.9 shell: web-runtime.js)
     jsRawKB: 278,   // 273.2 openvibe-shared 4.15 footer: the compact footer opens into the whole one, and the pulse line; 263.4 with shared 4.11.0's seasonal navbar; 254.1 with openvibe-shared 4.9.0 (status text twins in every theme, 2026-10-23); 246.2 with openvibe-shared 4.2.x (Ask Actor in the navbar, 2026-10-15); 239.1 (212.2 before the shell's web-runtime.js)
     jsBrotliKB: 69,   // 67.9 openvibe-shared 4.15 footer: the compact footer opens into the whole one, and the pulse line; 65.3 Shared 4.12.0: the light/dark switch, the seasonal mark and the theme pairs; 61.7 with shared 4.11.0's seasonal navbar; 59.1 with openvibe-shared 4.4.0 (every site in the launcher, 2026-10-17); 56.3 (49.9 before web-runtime.js)
