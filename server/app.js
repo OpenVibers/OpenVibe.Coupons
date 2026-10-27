@@ -164,7 +164,8 @@ async function createApp(opts = {}) {
     app.use(createWebhookRouter(express, { config, store, importer, log }));
 
     // ── Sign-in (OAuth2 client of OpenVibe.Network) ─────────
-    app.use('/auth/', rateLimit({ windowMs: 15 * 60_000, limit: 60, standardHeaders: true, legacyHeaders: false }));
+    // /auth/me is the navbar's who-is-signed-in read on every page, so it is not counted with sign-ins: 60 page views in 15 minutes made a signed-in visitor look signed out.
+    app.use('/auth/', rateLimit({ windowMs: 15 * 60_000, limit: 60, skip: (req) => req.path === '/me', standardHeaders: true, legacyHeaders: false }));
     app.use('/auth', auth.router(express));
     { const legal = require('openvibe-shared/legal'); app.get(legal.PATHS, legal.handler({ id: 'coupons', service: 'coupons', host: 'openvibe.coupons', name: 'OpenVibe.Coupons', profile: 'ugc' })); }
 
