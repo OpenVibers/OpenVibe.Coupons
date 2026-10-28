@@ -63,7 +63,7 @@ function renderPage(o) {
     // This site's own account links live in the shared navbar's account menu (the page's account
     // bar below is only for visitors without JavaScript).
     if (signedIn) nav.menu = { before: [{ label: 'Watching', href: '/watching', icon: 'fa-bell' }, { label: 'Connected browsers', href: '/connect-extension', icon: 'fa-puzzle-piece' }, ...(viewer.staff ? [{ label: 'Staff', href: '/staff', icon: 'fa-shield' }] : [])] };
-    const footer = { service: 'coupons', variant: 'full', mount: '#ov-footer', brandName: SITE_NAME, updates: '/updates' };
+    const footer = { service: 'coupons', variant: 'auto', path: o.path, mount: '#ov-footer', brandName: SITE_NAME, updates: '/updates' };   // full on the front page only (Shared 4.19)
     const account = signedIn
         ? `<a href="/watching">Watching</a> · <a href="/connect-extension">Connected browsers</a>${viewer.staff ? ' · <a href="/staff">Staff</a>' : ''} · <a href="/auth/logout?next=${loginNext}">Sign out</a>`
         : `<a href="/auth/login?next=${loginNext}">Sign in with OpenVibe</a>`;
