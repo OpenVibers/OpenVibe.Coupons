@@ -15,14 +15,21 @@ const fs = require('fs');
 const path = require('path');
 const layout = require('openvibe-publishing/layout');
 const frame = require('openvibe-shared/frame');
+const ovServe = require('openvibe-shared/serve');
 
 const NETWORK_URL = 'https://openvibe.network';
 const SITE_NAME = 'OpenVibe.Coupons';
 const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public');
 const NAV = [
-    { label: 'Merchants', href: '/' },
-    { label: 'Submit a code', href: '/submit' },
+    { label: 'Shops', href: '/', icon: 'fa-ticket' },
+    { label: 'Submit a code', href: '/submit', icon: 'fa-plus' },
     { label: 'Browser extension', href: '/companion' },
+];
+// The phone app bar (Shared 4.20): the shops, submitting a code, what you watch, how codes are labelled.
+const APP_BAR = (signedIn) => [
+    { label: 'Shops', href: '/', icon: 'fa-ticket' },
+    { label: 'Submit', href: '/submit', icon: 'fa-plus' },
+    signedIn ? { label: 'Watching', href: '/watching', icon: 'fa-bell' } : { label: 'How it works', href: '/about', icon: 'fa-circle-info' },
 ];
 
 const hashes = new Map();
@@ -52,7 +59,8 @@ function renderPage(o) {
     const nav = {
         service: 'coupons',
         apiBase: NETWORK_URL,
-        links: NAV.map((l) => ({ label: l.label, href: l.href })),
+        links: NAV.map((l) => ({ label: l.label, href: l.href, ...(l.icon ? { icon: l.icon } : {}) })),
+        appBar: APP_BAR(signedIn),
         history: { type: 'page', title: o.title || SITE_NAME },
         silentLogin: `${o.config.baseUrl}/auth/login?silent=1&next={url}`,
         sessionUrl: '/auth/me',
@@ -78,7 +86,8 @@ function renderPage(o) {
         // The AI-readable summary (publishing v1.3.0): given one, the shell emits the ai-summary meta
         // and a WebPage JSON-LD tag from these real fields; with none it emits neither.
         summary: o.summary,
-        styles: o.styles,   // openvibe-shared stylesheet names (the home's showcase.css)
+        styles: [...(o.styles || []), 'kit.css'],   // openvibe-shared stylesheet names (the home's showcase.css; the OpenVibe Kit)
+        scripts: [`<script src="${ovServe.url('kit-web.js')}" defer></script>`],   // the kit's behaviour: copy buttons, menus, confirms (the page works without it)
         facts: o.facts,
         updated: o.updated,
         url: o.url,

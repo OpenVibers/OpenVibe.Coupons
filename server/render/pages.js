@@ -9,8 +9,10 @@
  * "No reports in the last 30 days"), never as a friendly default.
  */
 const ssr = require('openvibe-publishing/ssr');
+const kit = require('openvibe-shared/kit');
 
 const { html: h, raw } = ssr;
+const k = (markup) => raw(String(markup));   // a kit builder's markup (already escaped) inside an h`` template
 
 const STATUS_LABEL = {
     unknown: 'Validity unknown',
@@ -88,12 +90,64 @@ function reportForms(v, { viewer, csrf, back }) {
 </div>`;
 }
 
-/** One code. v: coupons.view(); opts: { viewer, csrf, back, link, page } (page: its own page, where the title is the h1) */
+// ── A code, as people scan it (the owner, 2026-10-28, showing SimplyCodes' store page: "so much more organized") ──
+// The discount first, then the code with Copy and the shop, one status line in this site's own words (an unknown is
+// still called unknown), the stated restrictions as chips; everything else (each unknown in full, the evidence, how to
+// apply it, a report with its reason) folds under Details, open on the code's own page.
+
+/** DealNews' "Air Monitor for $35 + free shipping": a code for one product, not for the shop. */
+const PRODUCT_DEAL_RE = /\bfor \$\s?\d[\d,]*(?:\.\d\d)?\b/i;
+const isProductDeal = (v) => PRODUCT_DEAL_RE.test(v.title || '');
+
+/** The headline a person scans for, from the code's own title (then its description): 40% off, $16 off, Free shipping, $24. */
+function headline(v) {
+    const title = v.title || '';
+    const both = `${title} ${v.description || ''}`;
+    let m = /(\d{1,2}(?:\.\d)?)\s*%\s*off/i.exec(title) || /\((\d{1,2})%\)\s*off/i.exec(both) || /(\d{1,2})%\s*off/i.exec(both);
+    if (m) return `${m[1]}% off`;
+    m = /\$\s?(\d[\d,]*(?:\.\d\d)?)\s*off/i.exec(title);
+    if (m) return `$${m[1]} off`;
+    if (/free shipping/i.test(title) && !PRODUCT_DEAL_RE.test(title)) return 'Free shipping';
+    m = PRODUCT_DEAL_RE.exec(title);
+    if (m) return m[0].replace(/^for\s*/i, '').replace(/\s+/g, '');
+    m = /\$\s?(\d[\d,]*(?:\.\d\d)?)\s*off/i.exec(both);
+    if (m) return `$${m[1]} off`;
+    return 'Code';
+}
+
+/** The stated restrictions as short chips (none stated: no chips; Details says so in full). */
+function restrictionChips(list) {
+    if (!list.length) return '';
+    return h`<ul class="cpn-chips">${list.map((r) => h`<li>${r.kind === 'min_spend' ? `Minimum spend ${r.amount}` : r.kind === 'category' ? `Category: ${r.value}` : r.kind === 'new_customers_only' ? 'New customers only' : r.kind === 'region' ? regionName(r.value) : r.value}</li>`)}</ul>`;
+}
+
+/** One status line: the status, what the reports say (or that there are none), when the last one came, the expiry. */
+function statusLine(v) {
+    const parts = [];
+    parts.push(v.confidence == null ? (v.reports.last_report_at ? `No reports in the last ${v.reports.window_days} days` : 'No reports yet') : `Confidence ${Math.round(v.confidence * 100)}%`);
+    if (v.reports.last_report_at) parts.push(`last report ${kit.when(v.reports.last_report_at).text}`);
+    parts.push(v.expiry.known ? `Expires ${kit.when(v.expiry.expires_at).text}` : 'Expiry unknown');
+    return h`<p class="cpn-status">${statusBadge(v.status)} <span>${parts.join(' · ')}</span></p>`;
+}
+
+/** Signed in: Worked / Didn't work in one tap (the reason is in Details); signed out, Details says how to report. */
+function quickReport(v, { viewer, csrf, back }) {
+    if (!v.active || !viewer || viewer.kind !== 'user') return '';
+    const one = (outcome, label) => h`<form method="post" action="/c/${v.id}/report" class="inline">${hidden(csrf)}<input type="hidden" name="outcome" value="${outcome}"><input type="hidden" name="back" value="${back}"><button type="submit" class="cpn-vote">${label}</button></form>`;
+    return h`<div class="cpn-report"><span>Did it work?</span>${one('worked', 'It worked')}${one('failed', "It didn't")}</div>`;
+}
+
+/** One code. v: coupons.view(); opts: { viewer, csrf, back, link, page, shopUrl } (page: its own page, where the title is the h1) */
 function couponCard(v, opts = {}) {
     const title = opts.link ? h`<a href="/c/${v.id}">${v.title}</a>` : v.title;
-    return h`<article class="coupon status-${v.status}" id="${v.id}">
-${opts.page ? h`<h1 class="coupon-title">${title}</h1>` : h`<h3>${title}</h3>`}
-<p class="code-line"><span class="label">Code</span> <code class="code">${v.code}</code> ${statusBadge(v.status)}</p>
+    return h`<article class="coupon cpn cpn--${v.status}" id="${v.id}">
+<div class="cpn-top"><strong class="cpn-off">${headline(v)}</strong>${isProductDeal(v) ? h`<span class="cpn-scope">One product</span>` : ''}</div>
+${opts.page ? h`<h1 class="coupon-title">${title}</h1>` : h`<h3 class="cpn-title">${title}</h3>`}
+<div class="cpn-code"><code class="code" id="code-${v.id}">${v.code}</code>${k(kit.iconButton({ type: 'button', icon: 'copy', label: `Copy ${v.code}`, attrs: { 'data-ovk-copy': `#code-${v.id}`, hidden: true } }))}${opts.shopUrl ? k(kit.button({ href: opts.shopUrl, label: 'Shop', icon: 'open', kind: 'quiet', small: true, attrs: { rel: 'nofollow noopener', target: '_blank' } })) : ''}</div>
+${statusLine(v)}
+${restrictionChips(v.restrictions)}
+${quickReport(v, opts)}
+<details class="cpn-more"${opts.page ? ' open' : ''}><summary>Details</summary>
 ${v.description ? h`<p>${v.description}</p>` : ''}
 <p class="meta">${confidenceText(v)}</p>
 <p class="meta">${v.reports.last_report_at ? h`Last report ${v.reports.last_report_at.slice(0, 10)} around ${v.reports.last_report_at.slice(11, 13)}:00 UTC` : 'No reports yet'}</p>
@@ -104,6 +158,7 @@ ${evidenceList(v.evidence)}
 ${v.attribution ? h`<p class="meta">Code via <a href="${v.attribution.url}" rel="nofollow noopener">${v.attribution.text}</a></p>` : ''}
 ${v.origin === 'ai' ? h`<p class="disclosure">Extracted by an AI workflow from the evidence page and reviewed by staff before listing. Its validity comes only from people's reports.</p>` : ''}
 ${reportForms(v, opts)}
+</details>
 </article>`;
 }
 
@@ -145,19 +200,60 @@ ${live.length ? h`<ul class="chips">${live.map(chip)}</ul>` : ''}
 ${quiet.length ? h`<details class="quiet"><summary>${live.length ? 'Shops with no active code right now' : 'All shops'} (${String(quiet.length)})</summary><ul class="chips">${quiet.map(chip)}</ul></details>` : ''}</section>`;
 }
 
-function merchant({ m, domains, hints, active, ended, viewer, csrf, watching, back, flashMsg }) {
-    return h`${raw(ssr.breadcrumbsHtml([{ name: 'Coupons', url: '/' }, { name: m.name }]))}
+const SHOP_TABS = ['codes', 'deals', 'about'];
+/** The shop's tabs: Codes (for the shop or a category), Product deals (a code for one product), About; the first that has something opens. */
+function shopTab(query, active) {
+    const codes = active.filter((v) => !isProductDeal(v)).length;
+    const asked = query && SHOP_TABS.includes(String(query.tab)) ? String(query.tab) : null;
+    return asked || (codes || !active.length ? 'codes' : 'deals');
+}
+
+/**
+ * A shop (GET /m/:slug): the head (the shop, its codes, Watch, Submit and more as icons), the best code right now, and
+ * one tab at a time. ended is only read for the Codes tab (the route passes [] otherwise).
+ */
+function merchant({ m, domains, hints, active, ended, viewer, csrf, watching, back, flashMsg, tab = 'codes' }) {
+    const codes = active.filter((v) => !isProductDeal(v));
+    const deals = active.filter(isProductDeal);
+    const shopUrl = m.homepage_url || null;
+    const base = `/m/${m.slug}`;
+    const tabs = kit.tabs({ base, active: tab, label: `${m.name} sections`, items: [
+        { key: 'codes', label: 'Codes', count: codes.length },
+        ...(deals.length ? [{ key: 'deals', label: 'Product deals', count: deals.length }] : []),
+        { key: 'about', label: 'About' },
+    ] });
+    const watchForm = viewer && viewer.kind === 'user'
+        ? String(h`<form method="post" action="/m/${m.slug}/watch" class="ovk-inline">${hidden(csrf)}<input type="hidden" name="action" value="${watching ? 'unwatch' : 'watch'}">${k(kit.iconButton({ icon: 'bell', label: watching ? 'Stop watching this shop (while you watch, new codes reach your OpenVibe notifications)' : 'Watch this shop (private to you; new codes reach your OpenVibe notifications)', kind: watching ? 'on' : '' }))}</form>`)
+        : '';
+    const head = kit.head({
+        title: `${m.name} coupon codes`,
+        subHtml: String(h`${shopUrl ? h`<a href="${shopUrl}" rel="nofollow noopener">${hostOf(shopUrl)}</a> · ` : ''}${String(active.length)} active code${active.length === 1 ? '' : 's'}`),
+        back: { href: '/', label: 'All shops' },
+        actions: [watchForm, kit.iconButton({ href: `/submit?merchant=${encodeURIComponent(m.slug)}`, icon: 'plus', label: `Submit a code for ${m.name}` }),
+            kit.more({ label: 'More', items: [{ href: '/about', label: 'How codes are labelled', icon: 'help' }, { href: `${base}/feed.xml`, label: 'RSS feed', icon: 'link' }, { href: `${base}.json`, label: 'As JSON', icon: 'code' }] })],
+        tabs,
+    });
+    const best = codes.filter((v) => v.status === 'reported_working' && v.confidence != null).sort((a, b) => b.confidence - a.confidence)[0];
+    const card = (v) => couponCard(v, { viewer, csrf, back, link: true, shopUrl });
+    let body;
+    if (tab === 'about') {
+        body = h`<section class="ovk-section"><h2>The shop</h2><p class="ovk-note">${shopUrl ? h`<a href="${shopUrl}" rel="nofollow noopener">${hostOf(shopUrl)}</a>. ` : ''}Covers ${domains.map((d, i) => h`${i ? '; ' : ''}${d.host}${d.path_prefix || ''}${d.include_subdomains ? ' and its subdomains' : ''}`)}.</p>
+${m.description ? h`<p class="ovk-note">${m.description}</p>` : ''}
+${hints.length ? h`<ul class="hints ovk-note">${hints.map((x) => h`<li>How to apply codes here: ${x.text}</li>`)}</ul>` : ''}</section>
+<section class="ovk-section"><h2>How codes are labelled</h2><p class="ovk-note">A code is only called working when people reported recently that it worked; nobody else can set that, not the submitter, staff, a source or an AI model. An expiry is shown only when someone stated it, and restrictions only when they were stated. <a href="/about">The whole method</a>.</p></section>
+<p class="meta">Follow: <a href="${base}/feed.xml">RSS</a> · <a href="${base}.json">JSON</a></p>`;
+    } else if (tab === 'deals') {
+        body = h`<p class="ovk-note cpn-lede">Codes that take money off one product, as the source posted them.</p>
+${deals.length ? deals.map(card) : h`<p class="empty">No product deals for ${m.name} right now.</p>`}`;
+    } else {
+        body = h`${best ? h`<a class="cpn-best" href="#${best.id}"><span>Best code now</span><strong>${headline(best)}</strong><code>${best.code}</code><span class="meta">${`Confidence ${Math.round(best.confidence * 100)}%`}</span></a>` : ''}
+${codes.length ? codes.map(card) : active.length ? h`<p class="empty">No code for the whole shop right now; ${String(deals.length)} product deal${deals.length === 1 ? '' : 's'} <a href="${base}?tab=deals">in Product deals</a>.</p>` : h`<p class="empty">No active codes for ${m.name} right now.</p>`}
+<p>${k(kit.button({ href: `/submit?merchant=${encodeURIComponent(m.slug)}`, label: `Submit a code for ${m.name}`, icon: 'plus', kind: 'quiet', small: true }))}</p>
+${ended.length ? k(kit.fold({ title: 'Recently ended (not in active results)', meta: String(ended.length), body: String(h`<ul class="ended">${ended.map((v) => h`<li><code>${v.code}</code> — ${v.title} · ${v.status === 'expired' ? 'expired' : 'past its expiry'} ${v.expired_at ? v.expired_at.slice(0, 10) : v.expiry.expires_at ? v.expiry.expires_at.slice(0, 10) : ''}</li>`)}</ul>`) })) : ''}`;
+    }
+    return h`${k(head)}
 ${flash(flashMsg)}
-<h1>${m.name} coupon codes</h1>
-<p class="meta">${m.homepage_url ? h`<a href="${m.homepage_url}" rel="nofollow noopener">${hostOf(m.homepage_url)}</a> · ` : ''}Covers ${domains.map((d, i) => h`${i ? '; ' : ''}${d.host}${d.path_prefix || ''}${d.include_subdomains ? ' and its subdomains' : ''}`)}</p>
-${m.description ? h`<p>${m.description}</p>` : ''}
-${hints.length ? h`<ul class="hints">${hints.map((x) => h`<li>How to apply codes here: ${x.text}</li>`)}</ul>` : ''}
-<h2>Active codes (${active.length})</h2>
-${active.length ? active.map((v) => couponCard(v, { viewer, csrf, back, link: true })) : h`<p class="empty">No active codes for ${m.name} right now.</p>`}
-<p><a href="/submit?merchant=${m.slug}">Submit a code for ${m.name}</a></p>
-${viewer && viewer.kind === 'user' ? h`<form method="post" action="/m/${m.slug}/watch">${hidden(csrf)}<input type="hidden" name="action" value="${watching ? 'unwatch' : 'watch'}"><button type="submit">${watching ? 'Stop watching' : 'Watch this shop'}</button> <span class="meta">(private to you; new codes reach your OpenVibe notifications)</span></form>` : ''}
-${ended.length ? h`<h2>Recently ended (not in active results)</h2><ul class="ended">${ended.map((v) => h`<li><code>${v.code}</code> — ${v.title} · ${v.status === 'expired' ? 'expired' : 'past its expiry'} ${v.expired_at ? v.expired_at.slice(0, 10) : v.expiry.expires_at ? v.expiry.expires_at.slice(0, 10) : ''}</li>`)}</ul>` : ''}
-<p class="meta">Follow: <a href="/m/${m.slug}/feed.xml">RSS</a> · <a href="/m/${m.slug}.json">JSON</a></p>`;
+${body}`;
 }
 
 function couponPage({ v, m, history, viewer, csrf, back, flashMsg }) {
@@ -325,4 +421,5 @@ function message({ heading, text, action }) {
     return h`<h1>${heading}</h1><p>${text}</p>${action ? h`<p><a href="${action.href}">${action.label}</a></p>` : ''}`;
 }
 
-module.exports = { home, shopsSection, merchant, couponPage, couponCard, about, submitForm, submitted, connect, companion, COMPANION_RELEASE, watching, staff, message, STATUS_LABEL, SITE_SUMMARY };
+module.exports = {
+    shopTab, isProductDeal, headline, home, shopsSection, merchant, couponPage, couponCard, about, submitForm, submitted, connect, companion, COMPANION_RELEASE, watching, staff, message, STATUS_LABEL, SITE_SUMMARY };

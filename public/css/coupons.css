@@ -105,3 +105,30 @@ button.primary { background: var(--accent-strong, #2563eb); border-color: var(--
 @media (max-width: 600px) { .cp-search { flex-wrap: wrap; } .cp-search button { width: 100%; } .cp-stats b { font-size: 1.3rem; } .cp-stats a { padding: 12px; } .cp-cards > li:nth-child(n+5) { display: none; } }
 @media (prefers-reduced-motion: reduce) { .cp-stats a { transition: none; } }
 .home .page .sc-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
+
+/* The shop page on the OpenVibe Kit (Shared 4.20): a code card answers at a glance — the discount, the code with Copy
+   and the shop, one status line, the stated restrictions as chips — and folds the rest under Details. */
+.cpn { border: 1px solid var(--border, #1f2d47); border-radius: 14px; padding: 12px 14px; margin: 10px 0; background: var(--bg-card, #131c2e); }
+.cpn-top { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
+.cpn-off { font-size: 1.45rem; font-weight: 800; letter-spacing: -.01em; line-height: 1.15; }
+.cpn-scope { font-size: .72rem; font-weight: 700; letter-spacing: .02em; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-light, #2c3d5c); color: var(--text-secondary, #96a7c2); }
+.cpn-title { margin: 4px 0 8px; font-size: 1rem; font-weight: 600; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cpn-title a { color: inherit; text-decoration: none; }
+.cpn-title a:hover { text-decoration: underline; }
+.cpn-code { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.cpn-code .code { font-size: 1.05rem; }
+.cpn-code .ovk-btn { margin-left: auto; }
+.cpn-status { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 8px 0 0; color: var(--text-muted, #7386a3); font-size: .86rem; }
+.cpn-chips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; padding: 0; }
+.cpn-chips li { padding: 2px 9px; border-radius: 999px; background: var(--bg-tertiary, #172238); color: var(--text-secondary, #96a7c2); font-size: .8rem; }
+.cpn-report { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; color: var(--text-muted, #7386a3); font-size: .86rem; }
+.cpn-vote { padding: 4px 12px; border-radius: 999px; font-size: .84rem; min-height: 32px; }
+.cpn-more { margin-top: 8px; padding-top: 4px; border-top: 1px solid var(--border, #1f2d47); }
+.cpn-more > summary { padding: 6px 0; color: var(--text-secondary, #96a7c2); font-size: .86rem; cursor: pointer; }
+.cpn-more[open] > summary { margin-bottom: 4px; }
+.cpn-best { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 4px 0 10px; padding: 10px 14px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--success, #22c55e) 45%, transparent); background: color-mix(in srgb, var(--success, #22c55e) 8%, transparent); color: inherit; text-decoration: none; }
+.cpn-best > span:first-child { color: var(--success-text, var(--success, #22c55e)); font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.cpn-best strong { font-size: 1.1rem; }
+.cpn-best code { font-weight: 700; }
+.cpn-lede { padding: 0; margin: 0 0 8px; }
+.ovk-icon-btn--on { color: var(--accent-light, #60a5fa); }
