@@ -96,7 +96,7 @@ function reportForms(v, { viewer, csrf, back }) {
 // apply it, a report with its reason) folds under Details, open on the code's own page.
 
 /** DealNews' "Air Monitor for $35 + free shipping": a code for one product, not for the shop. */
-const PRODUCT_DEAL_RE = /\bfor \$\s?\d[\d,]*(?:\.\d\d)?\b/i;
+const PRODUCT_DEAL_RE = /\bfor (?:(?:from|only|just|as low as) )?\$\s?\d[\d,]*(?:\.\d\d)?\b/i;
 const isProductDeal = (v) => PRODUCT_DEAL_RE.test(v.title || '');
 
 /** The headline a person scans for, from the code's own title (then its description): 40% off, $16 off, Free shipping, $24. */
@@ -109,7 +109,7 @@ function headline(v) {
     if (m) return `$${m[1]} off`;
     if (/free shipping/i.test(title) && !PRODUCT_DEAL_RE.test(title)) return 'Free shipping';
     m = PRODUCT_DEAL_RE.exec(title);
-    if (m) return m[0].replace(/^for\s*/i, '').replace(/\s+/g, '');
+    if (m) return m[0].replace(/^for\s*(?:(?:from|only|just|as low as)\s+)?/i, '').replace(/\s+/g, '');
     m = /\$\s?(\d[\d,]*(?:\.\d\d)?)\s*off/i.exec(both);
     if (m) return `$${m[1]} off`;
     return 'Code';
