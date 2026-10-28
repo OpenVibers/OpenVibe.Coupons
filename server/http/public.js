@@ -254,7 +254,9 @@ function createPublicRoutes(ctx) {
         const m = await visibleMerchant(req, res);
         if (!m) return;
         const active = await Promise.all((await coupons.active(m.id)).map(async (c) => await coupons.view(c, { merchant: m })));
-        const ended = await Promise.all((await coupons.recentlyEnded(m.id)).map(async (c) => await coupons.view(c, { merchant: m })));
+        // One tab at a time (?tab=codes|deals|about): the recently ended codes are only read for Codes, where they fold.
+        const tab = pages.shopTab(req.query, active);
+        const ended = tab === 'codes' ? await Promise.all((await coupons.recentlyEnded(m.id)).map(async (c) => await coupons.view(c, { merchant: m }))) : [];
         const decision = publication.merchantDecision(m, active.length);
         const flashMsg = FLASH[req.query.done] || null;
         send(req, res, 200, {
@@ -264,7 +266,7 @@ function createPublicRoutes(ctx) {
             feeds: [{ type: 'rss', href: `/m/${m.slug}/feed.xml`, title: `${m.name} codes (RSS)` }],
             body: pages.merchant({
                 m, domains: await merchants.domains(m), hints: await coupons.merchantHints(m.id), active, ended,
-                viewer: req.viewer, csrf: csrf(req), back: `/m/${m.slug}`, flashMsg,
+                viewer: req.viewer, csrf: csrf(req), back: `/m/${m.slug}${tab === 'codes' ? '' : `?tab=${tab}`}`, flashMsg, tab,
                 watching: await watches.isWatching(req.viewer.subject, m),
             }),
         }, { cacheable: !flashMsg });
