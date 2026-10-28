@@ -213,6 +213,9 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
                                       SELECT DISTINCT ON (reporter_key) reporter_key, outcome FROM coupon_validation_reports
                                        WHERE coupon_id = ? AND updated_at > ? ORDER BY reporter_key, updated_at DESC) latest
                                   GROUP BY outcome`),
+        // A code's reports by day (each person once a day by the table's own rule): its page's weekly columns.
+        reportDays: db.prepare(`SELECT day, outcome, COUNT(*) AS n FROM coupon_validation_reports
+                                 WHERE coupon_id = ? AND day >= ? GROUP BY day, outcome ORDER BY day`),
         byMerchantPending: db.prepare("SELECT id FROM coupons WHERE merchant_id = ? AND review_state = 'pending'"),
         ofMerchant: db.prepare('SELECT id FROM coupons WHERE merchant_id = ?'),
     };
@@ -531,6 +534,24 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
     }
 
     /**
+     * A code's reports over time (the owner, 2026-10-28: "historical data or trends… Coupons success over time"): the
+     * last `weeks` weeks (Monday to Sunday, UTC), oldest first, each with its "worked" and "didn't work" reports. Counts
+     * only: never who reported. Weeks with no report are zeros, so the columns line up with the calendar.
+     */
+    async function reportWeeks(id, weeks = 12) {
+        const DAYMS = 86400000;
+        const today = Math.floor(store.now() / DAYMS) * DAYMS;
+        const monday = today - ((new Date(today).getUTCDay() + 6) % 7) * DAYMS;
+        const first = monday - (weeks - 1) * 7 * DAYMS;
+        const out = Array.from({ length: weeks }, (_, i) => ({ week: new Date(first + i * 7 * DAYMS).toISOString().slice(0, 10), worked: 0, failed: 0 }));
+        for (const r of await q.reportDays.all(id, new Date(first).toISOString().slice(0, 10))) {
+            const i = Math.floor((Date.parse(`${r.day}T00:00:00Z`) - first) / (7 * DAYMS));
+            if (i >= 0 && i < weeks && (r.outcome === 'worked' || r.outcome === 'failed')) out[i][r.outcome] += Number(r.n) || 0;
+        }
+        return out;
+    }
+
+    /**
      * The public view of a code. Never includes who submitted or reported it.
      */
     async function view(c, { merchant = null } = {}) {
@@ -579,6 +600,7 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
         get, submit, checkSubmissionRate, importFromSource, withdrawSourceItem, recompute, setStatus, approve, setExpiry, addMerchantHint, sweep, view,
         restrictionsOf, sourceRefs, reportCounts, activeCount, activeCounts, syncIndex, syncMerchant,
         history: async (id) => await q.historyFor.all(id),
+        reportWeeks,
         active: async (merchantId) => await q.active.all({ merchant: merchantId, now: store.now() }),
         recentlyEnded: async (merchantId) => await q.recentlyEnded.all({ merchant: merchantId, now: store.now() }),
         recentActive: async (limit = 30) => await q.recentActive.all({ now: store.now(), limit }),

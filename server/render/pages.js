@@ -256,11 +256,38 @@ ${flash(flashMsg)}
 ${body}`;
 }
 
-function couponPage({ v, m, history, viewer, csrf, back, flashMsg }) {
+/**
+ * Reports over time: twelve weekly columns, each split into "worked" (below) and "didn't work" (above), the
+ * tallest week at full height, with a legend and a sentence that says it plainly. Nothing when nobody reported.
+ */
+function reportTrend(weeks) {
+    const list = Array.isArray(weeks) ? weeks : [];
+    const worked = list.reduce((n, w) => n + w.worked, 0), failed = list.reduce((n, w) => n + w.failed, 0);
+    if (!worked && !failed) return '';
+    const top = Math.max(...list.map((w) => w.worked + w.failed), 1);
+    const recent = list.slice(-4), before = list.slice(-8, -4);
+    const rate = (ws) => { const ok = ws.reduce((n, w) => n + w.worked, 0), all = ws.reduce((n, w) => n + w.worked + w.failed, 0); return all ? ok / all : null; };
+    const now = rate(recent), then = rate(before);
+    const trend = now == null ? 'No reports in the last four weeks.'
+        : then == null ? `${Math.round(now * 100)}% of the last four weeks' reports say it worked.`
+            : `${Math.round(now * 100)}% of the last four weeks' reports say it worked, ${now > then + 0.05 ? 'up' : now < then - 0.05 ? 'down' : 'about the same as'} ${now > then + 0.05 || now < then - 0.05 ? `from ${Math.round(then * 100)}% the four weeks before` : 'the four weeks before'}.`;
+    const label = (w) => new Date(`${w.week}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    const pct = (n) => Math.round((n / top) * 1000) / 10;
+    return h`<section class="cpn-trend" aria-labelledby="trend-h"><h2 id="trend-h">Reports over time</h2>
+<p class="meta">${worked} “worked” and ${failed} “didn't work” in the last ${list.length} weeks. ${trend}</p>
+<div class="cpn-weeks" role="img" aria-label="${`Reports per week for ${list.length} weeks: ${list.map((w) => `${label(w)} ${w.worked} worked, ${w.failed} didn't`).join('; ')}`}">
+${list.map((w) => h`<div class="cpn-week" title="${`Week of ${label(w)}: ${w.worked} worked, ${w.failed} didn't work`}"><div class="cpn-bar">${w.failed ? h`<span class="cpn-no" style="height:${pct(w.failed)}%"></span>` : ''}${w.worked ? h`<span class="cpn-ok" style="height:${pct(w.worked)}%"></span>` : ''}</div><small>${label(w)}</small></div>`)}
+</div>
+<p class="cpn-legend"><span class="cpn-lk cpn-lk-ok">✓ Worked</span><span class="cpn-lk cpn-lk-no">✕ Didn't work</span></p>
+</section>`;
+}
+
+function couponPage({ v, m, history, weeks, viewer, csrf, back, flashMsg }) {
     return h`${raw(ssr.breadcrumbsHtml([{ name: 'Coupons', url: '/' }, { name: m.name, url: `/m/${m.slug}` }, { name: v.code }]))}
 ${flash(flashMsg)}
 ${v.active ? '' : h`<p class="notice">This code is not in active results (${STATUS_LABEL[v.status] ? STATUS_LABEL[v.status].toLowerCase() : v.status}${v.expiry.known && !v.active && v.status !== 'expired' ? ', past its expiry' : ''}).</p>`}
 ${couponCard(v, { viewer, csrf, back, page: true })}
+${reportTrend(weeks)}
 <h2>Status history</h2>
 ${history.length ? h`<ol class="history">${history.map((x) => h`<li>${utc(new Date(x.created_at).toISOString())}: ${x.from_status ? h`${STATUS_LABEL[x.from_status] || x.from_status} → ` : ''}${STATUS_LABEL[x.to_status] || x.to_status}${x.confidence_after != null ? h`, confidence ${Math.round(x.confidence_after * 100)}%` : ''} <span class="meta">(${x.reason.startsWith('staff') ? 'staff' : x.reason.startsWith('service:') ? 'service' : x.reason})</span></li>`)}</ol>` : h`<p class="empty">No changes yet.</p>`}
 <p class="meta"><a href="/c/${v.id}.json">This code as JSON</a></p>`;

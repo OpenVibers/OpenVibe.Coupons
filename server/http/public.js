@@ -297,7 +297,7 @@ function createPublicRoutes(ctx) {
         res.vary('Cookie'); res.vary('Authorization');
         res.set('Cache-Control', cache.htmlHeaders({ maxAge: 60 }));
         if (!decision.indexable) res.set('X-Robots-Tag', decision.robots);
-        res.json({ coupon: await coupons.view(found.c, { merchant: found.m }), merchant: { id: found.m.id, slug: found.m.slug, name: found.m.name, url: publication.merchantUrl(found.m) }, indexability: { indexable: decision.indexable, reasons: decision.codes } });
+        res.json({ coupon: await coupons.view(found.c, { merchant: found.m }), report_weeks: await coupons.reportWeeks(found.c.id), merchant: { id: found.m.id, slug: found.m.slug, name: found.m.name, url: publication.merchantUrl(found.m) }, indexability: { indexable: decision.indexable, reasons: decision.codes } });
     });
 
     router.get('/c/:id', async (req, res) => {
@@ -310,7 +310,7 @@ function createPublicRoutes(ctx) {
             title: `${v.code} — ${v.title} at ${m.name}`,
             description: couponDescription(v, m),
             decision: publication.couponDecision(c, m), canonical: v.url, jsonLd: jsonLd(m, v),
-            body: pages.couponPage({ v, m, history: await coupons.history(c.id), viewer: req.viewer, csrf: csrf(req), back: `/c/${c.id}`, flashMsg }),
+            body: pages.couponPage({ v, m, history: await coupons.history(c.id), weeks: await coupons.reportWeeks(c.id), viewer: req.viewer, csrf: csrf(req), back: `/c/${c.id}`, flashMsg }),
         }, { cacheable: !flashMsg });
     });
 
