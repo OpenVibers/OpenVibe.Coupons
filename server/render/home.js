@@ -78,7 +78,6 @@ function faqJsonLd(items) {
 function homePage(d) {
     const s = d.stats;
     const hero = h`<section class="sc-hero sc-split cp-hero"><div class="sc-hero-main">
-<p class="sc-eyebrow">OpenVibe.Coupons</p>
 <h1>Coupon codes,<span class="sc-accent"> honestly labelled</span></h1>
 <p class="sc-hero-lede">Codes for online shops, each with the deal it is for, its end date when one is stated and what people reported when they tried it. A code is called working only when people said so recently.</p>
 <form method="get" action="/" class="search cp-search" role="search"><label class="sr-only" for="q">Find a shop by name or domain</label><input id="q" name="q" type="search" maxlength="60" placeholder="Find a shop, like amazon.com"><button type="submit" class="primary">Search</button></form>
