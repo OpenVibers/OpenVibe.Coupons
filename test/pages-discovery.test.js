@@ -84,8 +84,11 @@ const { boot, check, done } = require('./helpers/boot');
         const desc = (page.match(/<meta name="description" content="([^"]*)">/) || [])[1] || '';
         assert.match(desc, /^Coupon code VEG5 for .+ at .+: (Validity unknown|Reported working|Reported not working), (expires \d{4}-\d{2}-\d{2}|no expiry stated)[^"]*\.$/, desc);
         assert.ok(desc.length <= 160, desc);
-        const blocks = [...page.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
-        assert.deepStrictEqual(blocks.map((b) => b['@type']).sort(), ['BreadcrumbList', 'WebPage']);
+        // One JSON-LD script for the page, every node in one @graph (the estate's convention).
+        const blocks = [...page.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)];
+        assert.strictEqual(blocks.length, 1, 'exactly one JSON-LD script');
+        const graph = JSON.parse(blocks[0][1])['@graph'];
+        assert.deepStrictEqual(graph.map((b) => b['@type']).sort(), ['BreadcrumbList', 'WebPage']);
         const json = (await t.get(`/c/${codeId}.json`)).json();
         assert.strictEqual(json.coupon.code, 'VEG5');
         assert.strictEqual(json.indexability.indexable, true);
