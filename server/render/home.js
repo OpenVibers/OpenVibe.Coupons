@@ -81,7 +81,7 @@ function homePage(d) {
 <h1>Coupon codes,<span class="sc-accent"> honestly labelled</span></h1>
 <p class="sc-hero-lede">Codes for online shops, each with the deal it is for, its end date when one is stated and what people reported when they tried it. A code is called working only when people said so recently.</p>
 <form method="get" action="/" class="search cp-search" role="search"><label class="sr-only" for="q">Find a shop by name or domain</label><input id="q" name="q" type="search" maxlength="60" placeholder="Find a shop, like amazon.com"><button type="submit" class="primary">Search</button></form>
-<div class="sc-actions"><a class="sc-btn sc-primary" href="#cp-new">See the newest codes</a><a class="sc-btn" href="/companion">Get the extension</a><a class="sc-btn" href="/submit">Submit a code</a></div>
+<div class="sc-actions"><a class="sc-btn sc-primary" href="#cp-new">See the newest codes</a><a class="sc-btn" href="/submit">Submit a code</a></div>
 </div>
 <div class="sc-hero-aside">${stats([
         { n: s.active, label: 'active codes', href: '#cp-new' },
@@ -107,19 +107,17 @@ ${raw(showcase.features({
             { icon: 'ov:shield', title: 'No referral games', text: 'It never rewrites links or adds referral tags, so whoever sent you keeps the credit.', href: '/companion' },
         ],
     }))}
-${raw(showcase.features({
-        title: 'What every code tells you',
+<section class="cp-sec" aria-labelledby="cp-tells"><details class="cp-fold"><summary><h2 id="cp-tells">What every code tells you</h2><span>the shop, the rules, the end, the reports</span></summary>${raw(showcase.features({
         items: [
             { icon: 'ov:coupons', title: 'The right shop', text: 'Each shop lists the domains and paths it covers, so a code is matched to the site you are on.' },
             { icon: 'ov:docs', title: 'Restrictions stated', text: 'Minimum spend, new customers only, the products it applies to: written down, not hidden.' },
             { icon: 'ov:history', title: 'Honest expiry', text: 'An end date when someone stated one, and "No end date stated" when nobody did.', href: '/about#expiry' },
             { icon: 'ov:community', title: 'Reports from people', text: 'Worked or did not work, recently: the status comes from what people said when they tried it.', href: '/about#statuses' },
         ],
-    }))}
+    }))}</details></section>
 <section class="cp-sec" aria-labelledby="cp-faq"><div class="cp-head"><h2 id="cp-faq">Questions and answers</h2></div>
 <div class="cp-faq">${d.faq.map((x) => h`<details><summary>${x.q}</summary><p>${x.a}</p></details>`)}</div></section>
 ${raw(showcase.network({ service: 'coupons' }))}
-${raw(showcase.cta({ title: 'Have a code?', text: 'Share it with a link to where it was published. People report whether it works, and everyone sees what they said.', actions: [{ label: 'Submit a code', href: '/submit', primary: true }, { label: 'Find deals on OpenVibe.Deals', href: 'https://openvibe.deals/' }] }))}
 <p class="meta"><a href="/about">How statuses and confidence work</a> · <a href="/feed.xml">RSS</a> · <a href="/atom.xml">Atom</a> · <a href="/feed.json">JSON Feed</a></p>`;
 }
 
