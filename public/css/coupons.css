@@ -103,6 +103,23 @@ button.primary { background: var(--accent-strong, #2563eb); border-color: var(--
 .cp-faq p { margin: 0 0 14px; color: var(--text-secondary, #96a7c2); }
 .cp-empty { margin-top: 24px; }
 @media (max-width: 600px) { .cp-search { flex-wrap: wrap; } .cp-search button { width: 100%; } .cp-stats b { font-size: 1.3rem; } .cp-stats a { padding: 12px; } .cp-cards > li:nth-child(n+5) { display: none; } }
+/* The home on phones (2026-10-29): a taste and a door. Each list of codes is one sideways row (every code is still
+   there), the figures are one strip, and the explainer folds under its heading. */
+.cp-fold { border: 1px solid var(--border, #1f2d47); border-radius: 14px; background: var(--bg-card, #131c2e); }
+.cp-fold > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 0 18px; cursor: pointer; list-style: none; }
+.cp-fold > summary::-webkit-details-marker { display: none; }
+.cp-fold > summary h2 { margin: 0; }
+.cp-fold > summary span { color: var(--text-muted, #7386a3); font-weight: 600; font-size: .86rem; text-align: right; }
+.cp-fold > summary:focus-visible { outline: 2px solid var(--accent, #3b82f6); outline-offset: -2px; border-radius: 14px; }
+.cp-fold .sc-sec { max-width: none; margin: 0; padding: 0 18px 18px; }
+@media (max-width: 600px) {
+  .cp-sec .cp-cards, .cp-hero .cp-stats { display: flex; flex-wrap: nowrap; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 16px; scrollbar-width: none; gap: 10px; margin-left: -16px; margin-right: -16px; padding: 0 16px 4px; }
+  .cp-sec .cp-cards::-webkit-scrollbar, .cp-hero .cp-stats::-webkit-scrollbar { display: none; }
+  .cp-sec .cp-cards > li { display: flex; flex: 0 0 84%; min-width: 0; scroll-snap-align: start; }
+  .cp-sec .cp-cards > li:nth-child(n+5) { display: flex; }
+  .cp-hero .cp-stats > li { flex: 0 0 auto; width: 132px; scroll-snap-align: start; }
+  .cp-fold > summary span { display: none; }
+}
 @media (prefers-reduced-motion: reduce) { .cp-stats a { transition: none; } }
 .home .page .sc-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
 
