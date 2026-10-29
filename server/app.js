@@ -189,6 +189,21 @@ async function createApp(opts = {}) {
     app.use(createDiscoveryRoutes(ctx));
     const pages = rateLimit({ windowMs: 60_000, limit: 300, standardHeaders: true, legacyHeaders: false });
     const publicRoutes = createPublicRoutes(ctx);
+    // The agent layer (openvibe-shared/agent-layer): /.well-known/agent.json and the Markdown twins of the
+    // public pages. Mounted before the page routes but gated to twin requests only, so a browser keeps the
+    // page's own render (signed in or out) and only a twin request reaches the agent layer. The manifest
+    // path is matched exactly, so /.well-known/security.txt and the rest of /.well-known/ are untouched.
+    const agentLayer = require('openvibe-shared/agent-layer');
+    agentLayer.mount({ use: (mw) => app.use((req, res, next) => {
+        const p = req.path || '';
+        const twin = p.endsWith('.md') || req.query.format === 'markdown' || /text\/markdown/.test(String(req.get('accept') || ''));
+        if (p !== '/.well-known/agent.json' && !twin) return next();
+        return mw(req, res, next);
+    }) }, {
+        descriptor: require('./agent-descriptor'),
+        render: require('./agent-pages').createAgentPages({ router: publicRoutes.router }).renderPublicPage,
+    });
+
     app.use(pages, publicRoutes.router);
     app.use((req, res) => publicRoutes.notFound(req, res));
 

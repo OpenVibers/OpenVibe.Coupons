@@ -51,6 +51,12 @@ function setRelease(id) { if (id) RELEASE = String(id); }
  * o: title, description, decision (required), canonical, summary, facts, updated, url, jsonLd [],
  *    feeds [{ type, href, title }], body (HTML), viewer, config, path, bodyClass
  */
+// The Markdown twin of this page (openvibe-shared/agent-layer): the head names it, so a reader that
+// already has the HTML finds the twin from it. The twin's address is this page's own address + '.md'.
+const agentHeadTags = (o) => {
+    const canonical = o.canonical || (o.config && o.config.baseUrl ? `${o.config.baseUrl}${String(o.path || '/').split('?')[0]}` : null);
+    return canonical ? require('openvibe-shared/agent-layer').linkHeaderTags(canonical, '/llms.txt').head : '';
+};
 function renderPage(o) {
     if (!o.decision) throw new TypeError('renderPage needs the gate decision');
     const viewer = o.viewer || { kind: 'anonymous' };
@@ -82,6 +88,8 @@ function renderPage(o) {
         title: o.title ? `${o.title} · ${SITE_NAME}` : o.path === '/' ? `${SITE_NAME}: coupon codes with honest expiry` : SITE_NAME,
         description: o.description || 'Coupon codes with merchant matching, restrictions, honest expiry and people\'s validity reports.',
         canonical: o.canonical,
+        // The head names the page's own Markdown twin (openvibe-shared/agent-layer).
+        head: agentHeadTags(o),
         decision: o.decision,
         // The AI-readable summary (publishing v1.3.0): given one, the shell emits the ai-summary meta
         // and a WebPage JSON-LD tag from these real fields; with none it emits neither.
