@@ -104,6 +104,17 @@ const { boot, check, done } = require('./helpers/boot');
         const llms = await t.get('/llms.txt');
         assert.match(llms.text, /reported_working/);
         assert.match(llms.text, /\/m\/<slug>\.json/);
+        // Every URL the file lists has to answer when it is fetched as a link: a language model that
+        // follows one and gets a 400 has learned nothing. The merchant lookup is a GET with one
+        // required parameter, so its link carries the parameter; bare, it answers 400 by design.
+        for (const url of [...llms.text.matchAll(/\((https?:\/\/[^)]+)\)/g)].map((m) => m[1])) {
+            if (!url.startsWith('https://openvibe.coupons/') || url.includes('/api/')) continue;
+            const u = new URL(url);
+            assert.ok((await t.get(u.pathname + u.search)).status < 400, url + ' does not answer');
+        }
+        const lookup = /https:\/\/openvibe\.coupons\/api\/v1\/merchants\/resolve\?host=([a-z0-9.-]+)/.exec(llms.text);
+        assert.ok(lookup, 'the merchant lookup link does not carry its required host parameter');
+        assert.strictEqual((await t.get('/api/v1/merchants/resolve?host=greengrocer.co.uk')).status, 200, 'the merchant lookup answers a plain GET with a host');
         assert.match((await t.get('/sitemap.xml')).text, /sitemaps\/coupons\.xml[\s\S]*sitemaps\/merchants\.xml|sitemaps\/merchants\.xml[\s\S]*sitemaps\/coupons\.xml/);
         assert.match((await t.get('/sitemaps/coupons.xml')).text, new RegExp(`https://openvibe\\.coupons/c/${codeId}`));
         assert.match((await t.get('/sitemaps/merchants.xml')).text, new RegExp(`https://openvibe\\.coupons/m/${shop.slug}`));

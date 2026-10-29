@@ -24,7 +24,7 @@ const pages = require('../render/pages');
 
 function createDiscoveryRoutes({ config, store, merchants, coupons, publication }) {
     const router = express.Router();
-    const abs = (p) => seo.canonicalUrl(config.baseUrl, p);
+    const abs = (p, opts) => seo.canonicalUrl(config.baseUrl, p, opts);
     const xml = (res, body, type = 'application/xml') => res.type(type).set('Cache-Control', cache.htmlHeaders({ maxAge: 300 })).send(body);
 
     async function activeEntries() {
@@ -69,7 +69,7 @@ function createDiscoveryRoutes({ config, store, merchants, coupons, publication 
                 { title: 'Feeds', links: [{ title: 'RSS', url: abs('/feed.xml') }, { title: 'Atom', url: abs('/atom.xml') }, { title: 'JSON Feed', url: abs('/feed.json') }] },
                 { title: 'Data', links: [
                     { title: 'Shop JSON', url: abs('/'), note: 'append .json to a shop URL (/m/<slug>.json)' },
-                    { title: 'Merchant lookup API', url: abs('/api/v1/merchants/resolve?host=example.com'), note: 'GET /api/v1/merchants/resolve?host= and GET /api/v1/merchants/<id>/coupons; anonymous, rate-limited' },
+                    { title: 'Merchant lookup API', url: abs('/api/v1/merchants/resolve?host=amazon.com', { query: ['host'] }), note: 'GET /api/v1/merchants/resolve?host=<shop host> (a worked example above) and GET /api/v1/merchants/<id>/coupons; anonymous, rate-limited' },
                 ] },
             ],
         }));
