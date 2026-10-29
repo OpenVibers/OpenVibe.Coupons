@@ -25,8 +25,9 @@ const frame = require('openvibe-shared/frame');
 const showcase = require('openvibe-shared/showcase');
 const cache = require('openvibe-shared/cache-policy');
 const seo = require('openvibe-publishing/seo');
-const { renderPage } = require('../render/layout');
+const { renderPage, oneGraph } = require('../render/layout');
 const pages = require('../render/pages');
+const offer = require('../render/offer');
 const home = require('../render/home');
 const { csrfToken, checkCsrf } = require('../auth/forms');
 const { ApiError } = require('./errors');
@@ -115,10 +116,16 @@ function createPublicRoutes(ctx) {
     };
 
     function jsonLd(m, v) {
-        return [
+        const nodes = [
             seo.structuredData.breadcrumbs([{ name: 'Coupons', url: `${config.baseUrl}/` }, { name: m.name, url: publication.merchantUrl(m) }, ...(v ? [{ name: v.code, url: v.url }] : [])]),
             seo.structuredData.webPage({ url: v ? v.url : publication.merchantUrl(m), name: v ? `${v.code} — ${v.title}` : `${m.name} coupon codes`, dateModified: v ? v.updated_at : null, inLanguage: 'en' }),
         ];
+        // A code's own page carries one JSON-LD script: every node in one @graph. The Product/Offer is
+        // there only where the page itself shows a price or an amount off with a currency.
+        if (!v) return nodes;
+        const product = offer.productOf(v, { merchant: { name: m.name, url: publication.merchantUrl(m) }, now: store.now() });
+        if (product) nodes.push(product);
+        return oneGraph(nodes);
     }
 
     // ── Home, about ─────────────────────────────────────────

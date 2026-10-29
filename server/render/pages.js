@@ -115,6 +115,40 @@ function headline(v) {
     return 'Code';
 }
 
+/**
+ * The money the page's headline shows: an amount off ("$15 off") or a product's price ("Air monitor for
+ * $35"). A percentage ("20% off"), free shipping or a plain code is not a price — a page that shows
+ * none of those carries no Product/Offer at all.
+ */
+function moneyOf(v) {
+    const head = headline(v);
+    let m = /^\$(\d[\d,]*(?:\.\d\d)?)\s*off$/.exec(head);
+    if (m) return { amount: Number(m[1].replace(/,/g, '')), symbol: '$', kind: 'off' };
+    m = /^\$(\d[\d,]*(?:\.\d\d)?)$/.exec(head);
+    if (m) return { amount: Number(m[1].replace(/,/g, '')), symbol: '$', kind: 'price' };
+    return null;
+}
+
+/** The symbol a currency is written with ("$" for USD, "€" for EUR). */
+function symbolOf(currency) {
+    try {
+        const parts = new Intl.NumberFormat('en', { style: 'currency', currency }).formatToParts(1);
+        return (parts.find((p) => p.type === 'currency') || {}).value || null;
+    } catch { return null; }
+}
+
+/**
+ * The ISO 4217 code the code states for its money: the one its minimum spend records, and only when
+ * that is the currency the page's money is written in (a "€20 off" code with a dollar minimum spend
+ * is not dollars). A code that states no currency states no currency.
+ */
+function currencyOf(v, money) {
+    if (!money) return null;
+    const min = (v.restrictions || []).find((r) => r.kind === 'min_spend' && r.currency);
+    if (!min) return null;
+    return symbolOf(min.currency) === money.symbol ? min.currency : null;
+}
+
 /** The stated restrictions as short chips (none stated: no chips; Details says so in full). */
 function restrictionChips(list) {
     if (!list.length) return '';
@@ -140,8 +174,11 @@ function quickReport(v, { viewer, csrf, back }) {
 /** One code. v: coupons.view(); opts: { viewer, csrf, back, link, page, shopUrl } (page: its own page, where the title is the h1) */
 function couponCard(v, opts = {}) {
     const title = opts.link ? h`<a href="/c/${v.id}">${v.title}</a>` : v.title;
+    // The currency the code states for its money, shown beside the amount on the code's own page: the page
+    // says which currency it is in, and the page's structured data claims nothing more than that.
+    const currency = opts.page ? currencyOf(v, moneyOf(v)) : null;
     return h`<article class="coupon cpn cpn--${v.status}" id="${v.id}">
-<div class="cpn-top"><strong class="cpn-off">${headline(v)}</strong>${isProductDeal(v) ? h`<span class="cpn-scope">One product</span>` : ''}</div>
+<div class="cpn-top"><strong class="cpn-off">${headline(v)}</strong>${isProductDeal(v) ? h`<span class="cpn-scope">One product</span>` : ''}${currency ? h`<span class="cpn-scope">${currency}</span>` : ''}</div>
 ${opts.page ? h`<h1 class="coupon-title">${title}</h1>` : h`<h3 class="cpn-title">${title}</h3>`}
 <div class="cpn-code"><code class="code" id="code-${v.id}">${v.code}</code>${k(kit.iconButton({ type: 'button', icon: 'copy', label: `Copy ${v.code}`, attrs: { 'data-ovk-copy': `#code-${v.id}`, hidden: true } }))}${opts.shopUrl ? k(kit.button({ href: opts.shopUrl, label: 'Shop', icon: 'open', kind: 'quiet', small: true, attrs: { rel: 'nofollow noopener', target: '_blank' } })) : ''}</div>
 ${statusLine(v)}
@@ -449,4 +486,4 @@ function message({ heading, text, action }) {
 }
 
 module.exports = {
-    shopTab, isProductDeal, headline, home, shopsSection, merchant, couponPage, couponCard, about, submitForm, submitted, connect, companion, COMPANION_RELEASE, watching, staff, message, STATUS_LABEL, SITE_SUMMARY };
+    shopTab, isProductDeal, headline, moneyOf, symbolOf, currencyOf, home, shopsSection, merchant, couponPage, couponCard, about, submitForm, submitted, connect, companion, COMPANION_RELEASE, watching, staff, message, STATUS_LABEL, SITE_SUMMARY };
