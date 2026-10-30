@@ -165,3 +165,14 @@ button.primary { background: var(--accent-strong, #2563eb); border-color: var(--
 .cpn-lk-ok::before { background: var(--success, #22c55e); }
 .cpn-lk-no::before { background: color-mix(in srgb, var(--danger, #ef4444) 80%, transparent); }
 @media (max-width: 480px) { .cpn-weeks { gap: 3px; height: 120px; } .cpn-week small { font-size: 10px; overflow: visible; visibility: hidden; } .cpn-week:nth-child(3n+1) small { visibility: visible; } }
+
+/* Touch targets on phones (fleet audit, 2026-10-29): touch pointers only. */
+@media (pointer: coarse) {
+  .chip { min-height: 44px; }
+  .quiet summary { min-height: 44px; }
+  .cp-shop { position: relative; }
+  .cp-shop::after { content: ''; position: absolute; left: 0; right: 0; top: -9px; bottom: -9px; }
+  .cp-more { position: relative; }
+  .cp-more::after { content: ''; position: absolute; left: 0; right: 0; top: -10px; bottom: -10px; }
+  .cp-card h3 a { display: inline-block; min-height: 44px; }
+}
