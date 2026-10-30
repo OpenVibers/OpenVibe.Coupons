@@ -266,7 +266,8 @@ function createPublicRoutes(ctx) {
         const ended = tab === 'codes' ? await Promise.all((await coupons.recentlyEnded(m.id)).map(async (c) => await coupons.view(c, { merchant: m }))) : [];
         const decision = publication.merchantDecision(m, active.length);
         const flashMsg = FLASH[req.query.done] || null;
-        const success = tab === 'codes' ? await coupons.merchantWeeks(m.id) : null;
+        // The success chart summarises every code, so it sits on the Codes and Product deals tabs (not About).
+        const success = tab === 'about' ? null : await coupons.merchantWeeks(m.id);
         send(req, res, 200, {
             title: `${m.name} coupon codes`,
             description: active.length ? `${active.length} active code${active.length === 1 ? '' : 's'} for ${m.name}, with restrictions, expiry and people's reports.` : `No active codes for ${m.name} right now.`,
