@@ -84,7 +84,8 @@ button.primary { background: var(--accent-strong, #2563eb); border-color: var(--
 .cp-more { font-weight: 600; font-size: .95rem; text-decoration: none; }
 .cp-more:hover { text-decoration: underline; text-underline-offset: 3px; }
 .cp-lede { margin: 4px 0 14px; color: var(--text-secondary, #96a7c2); }
-.cp-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); }
+/* Positioned: its hidden labels (.sr-only) are absolute and would land past the last off-screen card. */
+.cp-cards { position: relative; list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); }
 .cp-card { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--border, #1f2d47); background: var(--bg-card, #131c2e); }
 .cp-card:hover { border-color: color-mix(in srgb, var(--accent, #3b82f6) 55%, var(--border, #1f2d47)); }
 .cp-card p { margin: 0; }
