@@ -210,6 +210,7 @@ use a visitor's session against the API. Errors are RFC 9457 problems.
 | `GET /merchants/resolve?host=` | Anyone. Anonymous callers are rate-limited per IP, installs per install. | `coupons.merchant.resolve` / `coupons.lookup` |
 | `GET /merchants/:id/coupons` | Anyone (as above). | `coupons.coupon.lookup` / `coupons.lookup` |
 | `GET /merchants/:id`, `GET /coupons/:id` | Anyone. | `coupons.coupon.lookup` / `coupons.lookup` |
+| `GET /coupons/:id/success`, `GET /stores/:slug/success` | Anyone. | `coupons.coupon.lookup` / `coupons.lookup` |
 
 A source's terms can keep its codes out of browser extensions (`server/domain/source-policy.js`): DealNews' feed terms
 say its content may not be used in a browser extension made available for public use, so a code from
@@ -222,6 +223,11 @@ or another `*-extension://` scheme, or an install's `cpx_` token): left out of `
 | `POST /coupons/:id/status` `{status: disabled\|expired\|active, note?}` | Staff (Network admin, or `COUPONS_STAFF_SUBJECTS`) or a service. | `coupons.status.update` |
 | `POST /merchants`, `POST /merchants/:id/domains`, `POST /merchants/:id/status` | Staff or a service. | `coupons.merchant.manage` |
 
+- **Success over time.** `GET /coupons/:id/success` and `GET /stores/:slug/success` return the last twelve weeks,
+  Monday to Sunday UTC, oldest first: `{ from, to, min_people, weeks: [null | { week, worked, failed }] }`. A week
+  counts the people whose most recent report that week said it worked or didn't (a person once a week, even across a
+  shop's codes). `null` means fewer than 3 people — too few to show — so one person's report cannot be read off it.
+  The answer never contains a reporter key, install id, channel or day-level row.
 - **CORS:**
   - Only the two lookup routes send CORS headers, and only to origins in
     `COUPONS_EXTENSION_ORIGINS`. Those are exact `chrome-extension://<id>` origins, and optionally

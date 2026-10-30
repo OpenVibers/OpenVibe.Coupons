@@ -1,18 +1,19 @@
 'use strict';
 /**
- * A code's reports over time (the owner, 2026-10-28: "historical data or trends… Coupons success over time"): its page
- * shows twelve weekly columns of "worked" and "didn't work", with a sentence that says it plainly, and its JSON carries
- * the same weeks. Counts only, never who reported; nothing at all when nobody reported.
+ * Success over time (weekly.js, render/pages.js reportTrend/merchantTrend, GET /coupons/:id/success and
+ * GET /stores/:slug/success): twelve weekly buckets of people, drawn with the shared kit. A week with fewer than
+ * 3 people is null, and no answer carries a reporter key, install id, channel or day-level row.
  */
 const assert = require('assert');
 const { boot, check, done } = require('./helpers/boot');
 
 const DAY = 86400000;
+const forbidden = /reporter|install|channel|^day$|reporter_key|install_id/i;
 
 (async () => {
     const t = await boot();
     const alice = t.network.addUser('alice');
-    await t.merchant({ name: 'Blue Kettle', host: 'bluekettle.shop' });
+    const shop = await t.merchant({ name: 'Blue Kettle', host: 'bluekettle.shop' });
     const code = (await t.submit(alice, { host: 'bluekettle.shop', code: 'KETTLE10', title: 'Code KETTLE10' })).json().coupon;
     const quiet = (await t.submit(alice, { host: 'bluekettle.shop', code: 'QUIET5', title: 'Code QUIET5' })).json().coupon;
 
@@ -27,34 +28,63 @@ const DAY = 86400000;
     };
     for (const ago of [1, 2, 3, 9, 10]) await add(ago, 'worked');
     for (const ago of [2, 40, 41, 42]) await add(ago, 'failed');
-    await add(200, 'worked');   // older than twelve weeks: not in the columns
+    await add(200, 'worked');   // older than twelve weeks: not in the buckets
 
-    await check("the code's page shows its reports over time, plainly", async () => {
+    await check('the code page: worked-for people, the shared weekly chart, too-few weeks left blank', async () => {
         const r = await t.get(`/c/${code.id}`);
         assert.strictEqual(r.status, 200);
-        assert.match(r.text, /<h2 id="trend-h">Reports over time<\/h2>/);
-        assert.match(r.text, /5 “worked” and 4 “didn't work” in the last 12 weeks\./);
-        assert.strictEqual((r.text.match(/class="cpn-week"/g) || []).length, 12, 'twelve weeks, empty ones too');
-        assert.match(r.text, /role="img" aria-label="Reports per week for 12 weeks: /);
-        assert.match(r.text, /✓ Worked<\/span><span class="cpn-lk cpn-lk-no">✕ Didn't work/);
+        assert.match(r.text, /Worked for 5 of 6 people in the last 30 days\./);
+        assert.match(r.text, /<h2 id="trend-h">Success over time<\/h2>/);
+        assert.match(r.text, /class="ovk-chart ovk-chart--line"/, 'the shared kit draws it, not a hand-drawn SVG');
+        assert.match(r.text, /2 people said it worked and 4 said it didn't/);
+        assert.match(r.text, /A week with fewer than 3 people is too few to show/);
+        assert.match(r.text, /\/shared\/kit-data-web\.js\?v=/, 'the chart readout is loaded');
         assert.ok(!/rk\d/.test(r.text), 'never who reported');
     });
 
-    await check('the JSON carries the same weeks, oldest first', async () => {
-        const j = (await t.get(`/c/${code.id}.json`)).json();
-        assert.strictEqual(j.report_weeks.length, 12);
-        assert.ok(j.report_weeks.every((w) => /^\d{4}-\d\d-\d\d$/.test(w.week) && new Date(`${w.week}T00:00:00Z`).getUTCDay() === 1), 'weeks start on Monday');
-        assert.strictEqual(j.report_weeks.reduce((s, w) => s + w.worked, 0), 5);
-        assert.strictEqual(j.report_weeks.reduce((s, w) => s + w.failed, 0), 4);
-        assert.ok(j.report_weeks[0].week < j.report_weeks[11].week, 'oldest first');
+    await check('the code API: weekly buckets, a null under 3 people, no per-person field', async () => {
+        const j = (await t.get(`/api/v1/coupons/${code.id}/success`)).json();
+        assert.deepStrictEqual(Object.keys(j).sort(), ['from', 'min_people', 'to', 'weeks']);
+        assert.strictEqual(j.min_people, 3);
+        assert.strictEqual(j.weeks.length, 12);
+        assert.ok(j.weeks.every((w) => w === null || (/^\d{4}-\d\d-\d\d$/.test(w.week) && new Date(`${w.week}T00:00:00Z`).getUTCDay() === 1)), 'weeks start on Monday');
+        const visible = j.weeks.filter(Boolean);
+        assert.strictEqual(visible.length, 2, 'only weeks with 3 people are shown');
+        assert.deepStrictEqual(visible.map((w) => [w.worked, w.failed]), [[0, 3], [2, 1]]);
+        assert.strictEqual(j.weeks.filter((w) => w === null).length, 10, 'a week with 1 or 2 people is null');
+        assert.ok(!/reporter|install_id|channel|"day"/i.test(JSON.stringify(j)), 'aggregates only');
     });
 
-    await check('a code nobody reported on shows no chart', async () => {
+    await check('the store page and API: the shop\'s success per week across its codes', async () => {
+        const page = await t.get(`/m/${shop.slug}`);
+        assert.strictEqual(page.status, 200);
+        assert.match(page.text, /<h2 id="shop-trend-h">Success over time<\/h2>/);
+        assert.match(page.text, /33% of people said a code worked in the weeks with enough reports \(2 of 6\)\./);
+        assert.match(page.text, /class="ovk-chart ovk-chart--line"/);
+        assert.match(page.text, /\/shared\/kit-data\.css\?v=/);
+        assert.match(page.text, /\/shared\/kit-data-web\.js\?v=/);
+        const j = (await t.get(`/api/v1/stores/${shop.slug}/success`)).json();
+        assert.strictEqual(j.weeks.length, 12);
+        assert.deepStrictEqual(j.weeks.filter(Boolean).map((w) => [w.worked, w.failed]), [[0, 3], [2, 1]]);
+        assert.ok(!/reporter|install_id|channel|"day"/i.test(JSON.stringify(j)));
+        assert.strictEqual((await t.get('/api/v1/stores/nope/success')).status, 404);
+    });
+
+    await check('a code nobody reported on shows too few, never a chart', async () => {
         const r = await t.get(`/c/${quiet.id}`);
         assert.strictEqual(r.status, 200);
-        assert.ok(!/Reports over time/.test(r.text));
+        assert.match(r.text, /No one reported in the last 30 days\./);
+        assert.match(r.text, /Too few reports in the last 12 weeks to show a chart/);
+        assert.ok(!/class="ovk-chart/.test(r.text));
+    });
+
+    await check('the JSON twin carries the buckets too, and no person', async () => {
+        const j = (await t.get(`/c/${code.id}.json`)).json();
+        assert.strictEqual(j.report_weeks.length, 12);
+        assert.strictEqual(j.report_weeks.filter(Boolean).length, 2);
+        assert.ok(!/reporter|install_id|channel|"day"/i.test(JSON.stringify(j.report_weeks)));
     });
 
     await t.close();
     done();
-})();
+})().catch((e) => { console.error(e); process.exit(1); });
