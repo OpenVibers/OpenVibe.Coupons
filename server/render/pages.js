@@ -284,13 +284,13 @@ ${hints.length ? h`<ul class="hints ovk-note">${hints.map((x) => h`<li>How to ap
 ${deals.length ? deals.map(card) : h`<p class="empty">No product deals for ${m.name} right now.</p>`}`;
     } else {
         body = h`${best ? h`<a class="cpn-best" href="#${best.id}"><span>Best code now</span><strong>${headline(best)}</strong><code>${best.code}</code><span class="meta">${`Confidence ${Math.round(best.confidence * 100)}%`}</span></a>` : ''}
-${merchantTrend(success, m.name)}
 ${codes.length ? codes.map(card) : active.length ? h`<p class="empty">No code for the whole shop right now; ${String(deals.length)} product deal${deals.length === 1 ? '' : 's'} <a href="${base}?tab=deals">in Product deals</a>.</p>` : h`<p class="empty">No active codes for ${m.name} right now.</p>`}
 <p>${k(kit.button({ href: `/submit?merchant=${encodeURIComponent(m.slug)}`, label: `Submit a code for ${m.name}`, icon: 'plus', kind: 'quiet', small: true }))}</p>
 ${ended.length ? k(kit.fold({ title: 'Recently ended (not in active results)', meta: String(ended.length), body: String(h`<ul class="ended">${ended.map((v) => h`<li><code>${v.code}</code> — ${v.title} · ${v.status === 'expired' ? 'expired' : 'past its expiry'} ${v.expired_at ? v.expired_at.slice(0, 10) : v.expiry.expires_at ? v.expiry.expires_at.slice(0, 10) : ''}</li>`)}</ul>`) })) : ''}`;
     }
     return h`${k(head)}
 ${flash(flashMsg)}
+${tab === 'about' ? '' : merchantTrend(success, m.name)}
 ${body}`;
 }
 
