@@ -13,8 +13,9 @@
  * HMAC and never touches cookies, sessions or the JSON parser.
  */
 const { createEventConsumer } = require('openvibe-publishing/ingest');
+const { TOPICS: ACCOUNT_TOPICS } = require('openvibe-sdk/account-data');
 
-function createWebhookRouter(express, { config, store, importer, log = console }) {
+function createWebhookRouter(express, { config, store, importer, accountData = null, accountSend = null, log = console }) {
     const consumer = createEventConsumer({
         db: store.db,
         secrets: config.events.webhookSecrets,
@@ -29,6 +30,7 @@ function createWebhookRouter(express, { config, store, importer, log = console }
     router.post('/internal/events', express.raw({ type: 'application/json', limit: '1mb' }), async (req, res) => {
         const r = await consumer.apply(req.body, req.headers, async (event) => {
             const type = event && event.event_type;
+            if (accountData && ACCOUNT_TOPICS.includes(type)) return accountData.apply(event, { send: accountSend });
             if (type === 'sources.item.created') {
                 try {
                     const result = await importer.run();

@@ -40,6 +40,8 @@ const { createActorLimits } = require('./http/actor-limits');
 const { createWorker } = require('./worker');
 const { assetVersion } = require('./render/layout');
 const { createWebhookRouter } = require('./events/consumer');
+const accountDataLib = require('./account-data');
+const { createNetworkSender } = require('openvibe-sdk/account-data');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const VERSION = require('../package.json').version;
@@ -64,6 +66,11 @@ async function createApp(opts = {}) {
     });
     // PostgreSQL (ADR-035): opened and migrated here unless the caller (a test, a script) hands in a store.
     const store = opts.store || await openStore(config, { now: opts.now, log });
+    const accountData = opts.accountData || accountDataLib.create({ db: store.db, log });
+    await accountData.ensureSchema();
+    const accountSend = opts.accountSend || (config.oauth.clientSecret ? createNetworkSender({
+        networkInternalUrl: config.networkInternalUrl, clientId: config.oauth.clientId, clientSecret: config.oauth.clientSecret, fetch: fetchImpl,
+    }) : null);
 
     // OpenVibe.Events through the shared openvibe-sdk transactional outbox (ADR-004, plan T1/T9): rows are
     // written inside the change's own transaction; moderationAction never names an owner_subject.
@@ -101,7 +108,7 @@ async function createApp(opts = {}) {
     const viewers = createViewerResolver({ auth, jwks, config, installs });
     const worker = createWorker({ config, coupons, importer, outbox, log });
 
-    const ctx = { config, store, outbox, publication, merchants, coupons, reports, installs, watches, moderation, importer, auth, jwks, viewers, worker, indexnow };
+    const ctx = { config, store, accountData, accountSend, outbox, publication, merchants, coupons, reports, installs, watches, moderation, importer, auth, jwks, viewers, worker, indexnow };
 
     const app = express();
     app.disable('x-powered-by');
@@ -161,7 +168,7 @@ async function createApp(opts = {}) {
 
     // ── Inbound events (OpenVibe.Events webhook, signed) ─────
     // Mounted before sign-in and body-parser: reads its own raw body for the HMAC.
-    app.use(createWebhookRouter(express, { config, store, importer, log }));
+    app.use(createWebhookRouter(express, { config, store, importer, accountData, accountSend, log }));
 
     // ── Sign-in (OAuth2 client of OpenVibe.Network) ─────────
     // /auth/me is the navbar's who-is-signed-in read on every page, so it is not counted with sign-ins: 60 page views in 15 minutes made a signed-in visitor look signed out.
