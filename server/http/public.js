@@ -266,13 +266,15 @@ function createPublicRoutes(ctx) {
         const ended = tab === 'codes' ? await Promise.all((await coupons.recentlyEnded(m.id)).map(async (c) => await coupons.view(c, { merchant: m }))) : [];
         const decision = publication.merchantDecision(m, active.length);
         const flashMsg = FLASH[req.query.done] || null;
+        const success = tab === 'codes' ? await coupons.merchantWeeks(m.id) : null;
         send(req, res, 200, {
             title: `${m.name} coupon codes`,
             description: active.length ? `${active.length} active code${active.length === 1 ? '' : 's'} for ${m.name}, with restrictions, expiry and people's reports.` : `No active codes for ${m.name} right now.`,
             decision, canonical: publication.merchantUrl(m), jsonLd: jsonLd(m, null),
             feeds: [{ type: 'rss', href: `/m/${m.slug}/feed.xml`, title: `${m.name} codes (RSS)` }],
+            chart: true,
             body: pages.merchant({
-                m, domains: await merchants.domains(m), hints: await coupons.merchantHints(m.id), active, ended,
+                m, domains: await merchants.domains(m), hints: await coupons.merchantHints(m.id), active, ended, success,
                 viewer: req.viewer, csrf: csrf(req), back: `/m/${m.slug}${tab === 'codes' ? '' : `?tab=${tab}`}`, flashMsg, tab,
                 watching: await watches.isWatching(req.viewer.subject, m),
             }),
@@ -304,7 +306,8 @@ function createPublicRoutes(ctx) {
         res.vary('Cookie'); res.vary('Authorization');
         res.set('Cache-Control', cache.htmlHeaders({ maxAge: 60 }));
         if (!decision.indexable) res.set('X-Robots-Tag', decision.robots);
-        res.json({ coupon: await coupons.view(found.c, { merchant: found.m }), report_weeks: await coupons.reportWeeks(found.c.id), merchant: { id: found.m.id, slug: found.m.slug, name: found.m.name, url: publication.merchantUrl(found.m) }, indexability: { indexable: decision.indexable, reasons: decision.codes } });
+        const weeks = await coupons.reportWeeks(found.c.id);
+        res.json({ coupon: await coupons.view(found.c, { merchant: found.m }), report_weeks: weeks.weeks, report_weeks_from: weeks.from, merchant: { id: found.m.id, slug: found.m.slug, name: found.m.name, url: publication.merchantUrl(found.m) }, indexability: { indexable: decision.indexable, reasons: decision.codes } });
     });
 
     router.get('/c/:id', async (req, res) => {
@@ -317,7 +320,7 @@ function createPublicRoutes(ctx) {
             title: `${v.code} — ${v.title} at ${m.name}`,
             description: couponDescription(v, m),
             decision: publication.couponDecision(c, m), canonical: v.url, jsonLd: jsonLd(m, v),
-            body: pages.couponPage({ v, m, history: await coupons.history(c.id), weeks: await coupons.reportWeeks(c.id), viewer: req.viewer, csrf: csrf(req), back: `/c/${c.id}`, flashMsg }),
+            body: pages.couponPage({ v, m, history: await coupons.history(c.id), weeks: await coupons.reportWeeks(c.id), viewer: req.viewer, csrf: csrf(req), back: `/c/${c.id}`, flashMsg }), chart: true,
         }, { cacheable: !flashMsg });
     });
 

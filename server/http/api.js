@@ -11,6 +11,8 @@
  * Also public (no CORS):
  *   GET  /merchants/:id                  coupons.coupon.lookup     | scope coupons.lookup
  *   GET  /coupons/:id                    coupons.coupon.lookup     | scope coupons.lookup
+ *   GET  /coupons/:id/success            coupons.coupon.lookup     | scope coupons.lookup  (weekly, aggregate)
+ *   GET  /stores/:slug/success           coupons.coupon.lookup     | scope coupons.lookup  (weekly, aggregate)
  * People (Bearer Network token), installs and services acting for a person:
  *   POST /coupons/:id/report             coupons.report.create     | scope coupons.report
  *   POST /coupons/submit                 coupons.coupon.submit     (installs cannot submit)
@@ -179,6 +181,25 @@ function createApi(ctx) {
         if (v.extension_excluded && fromExtension(req)) throw new ApiError(404, 'coupon.not_found', 'no such code');
         publicCache(res);
         return { coupon: v, merchant: await merchantView(m, req) };
+    }));
+
+    // ── Success over time (aggregate weekly buckets; never a reporter, install, channel or day-level row) ──
+    router.get('/coupons/:id/success', lookupLimiter, guard(CAPABILITIES.COUPON_LOOKUP, { scope: SCOPES.LOOKUP }), reads, run(async (req, res) => {
+        const c = await coupons.get(req.params.id);
+        const m = c && await merchants.byId(c.merchant_id);
+        if (!c || !m || m.status !== 'active' || c.review_state !== 'published' || c.status === 'disabled') throw new ApiError(404, 'coupon.not_found', 'no such code');
+        const v = await coupons.view(c, { merchant: m });
+        if (v.extension_excluded && fromExtension(req)) throw new ApiError(404, 'coupon.not_found', 'no such code');
+        byOrigin(res);
+        publicCache(res);
+        return await coupons.reportWeeks(c.id);
+    }));
+
+    router.get('/stores/:slug/success', lookupLimiter, guard(CAPABILITIES.COUPON_LOOKUP, { scope: SCOPES.LOOKUP }), reads, run(async (req, res) => {
+        const m = await activeMerchant(req.params.slug);
+        byOrigin(res);
+        publicCache(res);
+        return await coupons.merchantWeeks(m.id);
     }));
 
     // ── Reports ─────────────────────────────────────────────

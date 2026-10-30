@@ -151,21 +151,12 @@ button.primary { background: var(--accent-strong, #2563eb); border-color: var(--
 .cpn-lede { padding: 0; margin: 0 0 8px; }
 .ovk-icon-btn--on { color: var(--accent-light, #60a5fa); }
 
-/* A code's reports over time (render/pages.js reportTrend): weekly columns, worked below, didn't work above. */
+/* Success over time (render/pages.js reportTrend, merchantTrend): the shared kit draws the chart; these rules place
+   it and the one-line people count. Theme tokens only. */
 .cpn-trend { margin: 22px 0 8px; }
 .cpn-trend h2 { margin-bottom: 4px; }
-.cpn-weeks { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 6px; align-items: end; height: 150px; margin: 12px 0 6px; padding: 0 2px; border-bottom: 1px solid var(--border, #1f2d47); }
-.cpn-week { display: flex; flex-direction: column; align-items: stretch; gap: 4px; height: 100%; min-width: 0; }
-.cpn-bar { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; }
-.cpn-bar span { display: block; border-radius: 4px 4px 2px 2px; min-height: 3px; }
-.cpn-ok { background: var(--success, #22c55e); }
-.cpn-no { background: color-mix(in srgb, var(--danger, #ef4444) 80%, transparent); }
-.cpn-week small { font-size: 10.5px; color: var(--text-muted, #7386a3); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: clip; }
-.cpn-legend { display: flex; gap: 16px; font-size: 13px; color: var(--text-secondary, #a8b3c4); margin: 6px 0 0; }
-.cpn-lk::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
-.cpn-lk-ok::before { background: var(--success, #22c55e); }
-.cpn-lk-no::before { background: color-mix(in srgb, var(--danger, #ef4444) 80%, transparent); }
-@media (max-width: 480px) { .cpn-weeks { gap: 3px; height: 120px; } .cpn-week small { font-size: 10px; overflow: visible; visibility: hidden; } .cpn-week:nth-child(3n+1) small { visibility: visible; } }
+.cpn-people { margin: 12px 0 0; font-weight: 600; }
+.cpn-chart .ovk-chart { margin: 10px 0; }
 
 /* Touch targets on phones (fleet audit, 2026-10-29): touch pointers only. */
 @media (pointer: coarse) {

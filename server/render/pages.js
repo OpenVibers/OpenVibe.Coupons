@@ -249,7 +249,7 @@ function shopTab(query, active) {
  * A shop (GET /m/:slug): the head (the shop, its codes, Watch, Submit and more as icons), the best code right now, and
  * one tab at a time. ended is only read for the Codes tab (the route passes [] otherwise).
  */
-function merchant({ m, domains, hints, active, ended, viewer, csrf, watching, back, flashMsg, tab = 'codes' }) {
+function merchant({ m, domains, hints, active, ended, success = null, viewer, csrf, watching, back, flashMsg, tab = 'codes' }) {
     const codes = active.filter((v) => !isProductDeal(v));
     const deals = active.filter(isProductDeal);
     const shopUrl = m.homepage_url || null;
@@ -284,6 +284,7 @@ ${hints.length ? h`<ul class="hints ovk-note">${hints.map((x) => h`<li>How to ap
 ${deals.length ? deals.map(card) : h`<p class="empty">No product deals for ${m.name} right now.</p>`}`;
     } else {
         body = h`${best ? h`<a class="cpn-best" href="#${best.id}"><span>Best code now</span><strong>${headline(best)}</strong><code>${best.code}</code><span class="meta">${`Confidence ${Math.round(best.confidence * 100)}%`}</span></a>` : ''}
+${merchantTrend(success, m.name)}
 ${codes.length ? codes.map(card) : active.length ? h`<p class="empty">No code for the whole shop right now; ${String(deals.length)} product deal${deals.length === 1 ? '' : 's'} <a href="${base}?tab=deals">in Product deals</a>.</p>` : h`<p class="empty">No active codes for ${m.name} right now.</p>`}
 <p>${k(kit.button({ href: `/submit?merchant=${encodeURIComponent(m.slug)}`, label: `Submit a code for ${m.name}`, icon: 'plus', kind: 'quiet', small: true }))}</p>
 ${ended.length ? k(kit.fold({ title: 'Recently ended (not in active results)', meta: String(ended.length), body: String(h`<ul class="ended">${ended.map((v) => h`<li><code>${v.code}</code> — ${v.title} · ${v.status === 'expired' ? 'expired' : 'past its expiry'} ${v.expired_at ? v.expired_at.slice(0, 10) : v.expiry.expires_at ? v.expiry.expires_at.slice(0, 10) : ''}</li>`)}</ul>`) })) : ''}`;
@@ -293,30 +294,62 @@ ${flash(flashMsg)}
 ${body}`;
 }
 
+/** A week's Monday, for the buckets the API leaves null when fewer than 3 people reported. */
+const DAY = 86400000;
+const weekAt = (trend, i) => new Date(Date.parse(`${trend.from}T00:00:00Z`) + i * 7 * DAY).toISOString().slice(0, 10);
+const weekDates = (trend) => trend.weeks.map((w, i) => (w ? w.week : weekAt(trend, i)));
+
+/** The people a code's last 30 days of reports came from: "Worked for 4 of 7 people". */
+function peopleLine(v) {
+    const worked = Number(v.reports.worked) || 0, failed = Number(v.reports.failed) || 0, total = worked + failed;
+    return total ? `Worked for ${worked} of ${total} people in the last ${v.reports.window_days} days.` : `No one reported in the last ${v.reports.window_days} days.`;
+}
+
 /**
- * Reports over time: twelve weekly columns, each split into "worked" (below) and "didn't work" (above), the
- * tallest week at full height, with a legend and a sentence that says it plainly. Nothing when nobody reported.
+ * A code's success over time: twelve weekly buckets of people whose most recent report that week said it worked or
+ * didn't, drawn by the shared kit. A null bucket is fewer than 3 people and stays a gap; nothing names a person.
  */
-function reportTrend(weeks) {
-    const list = Array.isArray(weeks) ? weeks : [];
-    const worked = list.reduce((n, w) => n + w.worked, 0), failed = list.reduce((n, w) => n + w.failed, 0);
-    if (!worked && !failed) return '';
-    const top = Math.max(...list.map((w) => w.worked + w.failed), 1);
-    const recent = list.slice(-4), before = list.slice(-8, -4);
-    const rate = (ws) => { const ok = ws.reduce((n, w) => n + w.worked, 0), all = ws.reduce((n, w) => n + w.worked + w.failed, 0); return all ? ok / all : null; };
-    const now = rate(recent), then = rate(before);
-    const trend = now == null ? 'No reports in the last four weeks.'
-        : then == null ? `${Math.round(now * 100)}% of the last four weeks' reports say it worked.`
-            : `${Math.round(now * 100)}% of the last four weeks' reports say it worked, ${now > then + 0.05 ? 'up' : now < then - 0.05 ? 'down' : 'about the same as'} ${now > then + 0.05 || now < then - 0.05 ? `from ${Math.round(then * 100)}% the four weeks before` : 'the four weeks before'}.`;
-    const label = (w) => new Date(`${w.week}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-    const pct = (n) => Math.round((n / top) * 1000) / 10;
-    return h`<section class="cpn-trend" aria-labelledby="trend-h"><h2 id="trend-h">Reports over time</h2>
-<p class="meta">${worked} “worked” and ${failed} “didn't work” in the last ${list.length} weeks. ${trend}</p>
-<div class="cpn-weeks" role="img" aria-label="${`Reports per week for ${list.length} weeks: ${list.map((w) => `${label(w)} ${w.worked} worked, ${w.failed} didn't`).join('; ')}`}">
-${list.map((w) => h`<div class="cpn-week" title="${`Week of ${label(w)}: ${w.worked} worked, ${w.failed} didn't work`}"><div class="cpn-bar">${w.failed ? h`<span class="cpn-no" style="height:${pct(w.failed)}%"></span>` : ''}${w.worked ? h`<span class="cpn-ok" style="height:${pct(w.worked)}%"></span>` : ''}</div><small>${label(w)}</small></div>`)}
-</div>
-<p class="cpn-legend"><span class="cpn-lk cpn-lk-ok">✓ Worked</span><span class="cpn-lk cpn-lk-no">✕ Didn't work</span></p>
-</section>`;
+function reportTrend(trend) {
+    if (!trend || !Array.isArray(trend.weeks) || !trend.weeks.length) return '';
+    const dates = weekDates(trend);
+    const shown = trend.weeks.filter(Boolean);
+    const worked = shown.reduce((n, w) => n + w.worked, 0), failed = shown.reduce((n, w) => n + w.failed, 0);
+    if (!shown.length) return h`<section class="cpn-trend" aria-labelledby="trend-h"><h2 id="trend-h">Success over time</h2>
+<p class="meta">Too few reports in the last ${trend.weeks.length} weeks to show a chart: a week needs at least ${trend.min_people} people.</p></section>`;
+    const points = (field) => trend.weeks.map((w, i) => [dates[i], w ? w[field] : null]);
+    const chart = kit.chart({
+        type: 'line', title: `Worked and didn't work, last ${trend.weeks.length} weeks`, height: 180,
+        label: 'Worked and did not work by week',
+        note: `Each week counts people, not reports; a week with fewer than ${trend.min_people} people is left blank.`,
+        x: { time: true, label: 'Week' }, y: { fmt: 'int', label: 'People' },
+        series: [{ name: 'Worked', points: points('worked') }, { name: "Didn't work", points: points('failed') }],
+    });
+    return h`<section class="cpn-trend" aria-labelledby="trend-h"><h2 id="trend-h">Success over time</h2>
+<p class="meta">${worked} people said it worked and ${failed} said it didn't, in the weeks with enough reports of the last ${trend.weeks.length}.</p>
+<div class="cpn-chart">${k(chart)}</div>
+<p class="meta">A week with fewer than ${trend.min_people} people is too few to show, so it stays blank.</p></section>`;
+}
+
+/** A shop's success rate per week across all its codes (weekly buckets, aggregate only). */
+function merchantTrend(trend, name) {
+    if (!trend || !Array.isArray(trend.weeks) || !trend.weeks.length) return '';
+    const dates = weekDates(trend);
+    const shown = trend.weeks.filter(Boolean);
+    const worked = shown.reduce((n, w) => n + w.worked, 0), failed = shown.reduce((n, w) => n + w.failed, 0);
+    const section = (body) => h`<section class="cpn-trend" aria-labelledby="shop-trend-h"><h2 id="shop-trend-h">Success over time</h2>${body}</section>`;
+    if (!shown.length) return section(h`<p class="meta">Too few reports at ${name} in the last ${trend.weeks.length} weeks to show a success rate: a week needs at least ${trend.min_people} people.</p>`);
+    const rate = Math.round((worked / (worked + failed)) * 100);
+    const points = trend.weeks.map((w, i) => [dates[i], w ? Math.round((w.worked / (w.worked + w.failed)) * 100) : null]);
+    const chart = kit.chart({
+        type: 'line', title: `${name}: success rate by week, last ${trend.weeks.length} weeks`, height: 180,
+        label: `${name} success rate by week`,
+        note: `The share of people whose most recent report that week said it worked; a week with fewer than ${trend.min_people} people is left blank.`,
+        x: { time: true, label: 'Week' }, y: { fmt: 'percent', label: 'Worked' },
+        series: [{ name: '% worked', points }],
+    });
+    return section(h`<p class="meta">${rate}% of people said a code worked in the weeks with enough reports (${worked} of ${worked + failed}).</p>
+<div class="cpn-chart">${k(chart)}</div>
+<p class="meta">A week with fewer than ${trend.min_people} people is too few to show, so it stays blank.</p>`);
 }
 
 function couponPage({ v, m, history, weeks, viewer, csrf, back, flashMsg }) {
@@ -324,6 +357,7 @@ function couponPage({ v, m, history, weeks, viewer, csrf, back, flashMsg }) {
 ${flash(flashMsg)}
 ${v.active ? '' : h`<p class="notice">This code is not in active results (${STATUS_LABEL[v.status] ? STATUS_LABEL[v.status].toLowerCase() : v.status}${v.expiry.known && !v.active && v.status !== 'expired' ? ', past its expiry' : ''}).</p>`}
 ${couponCard(v, { viewer, csrf, back, page: true })}
+<p class="cpn-people">${peopleLine(v)}</p>
 ${reportTrend(weeks)}
 <h2>Status history</h2>
 ${history.length ? h`<ol class="history">${history.map((x) => h`<li>${utc(new Date(x.created_at).toISOString())}: ${x.from_status ? h`${STATUS_LABEL[x.from_status] || x.from_status} → ` : ''}${STATUS_LABEL[x.to_status] || x.to_status}${x.confidence_after != null ? h`, confidence ${Math.round(x.confidence_after * 100)}%` : ''} <span class="meta">(${x.reason.startsWith('staff') ? 'staff' : x.reason.startsWith('service:') ? 'service' : x.reason})</span></li>`)}</ol>` : h`<p class="empty">No changes yet.</p>`}
