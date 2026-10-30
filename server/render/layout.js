@@ -15,6 +15,7 @@ const fs = require('fs');
 const path = require('path');
 const layout = require('openvibe-publishing/layout');
 const frame = require('openvibe-shared/frame');
+const { foldBlock } = require('./short');
 const ovServe = require('openvibe-shared/serve');
 
 /**
@@ -98,7 +99,8 @@ function renderPage(o) {
         description: o.description || 'Coupon codes with merchant matching, restrictions, honest expiry and people\'s validity reports.',
         canonical: o.canonical,
         // The head names the page's own Markdown twin (openvibe-shared/agent-layer).
-        head: agentHeadTags(o),
+        // The rules that show the picked block of a pick block are written for the page, because there is one per block.
+        head: [agentHeadTags(o), ...(o.inlineStyles || []).map((css) => `<style>${css}</style>`)].filter(Boolean).join('\n'),
         decision: o.decision,
         // The AI-readable summary (publishing v1.3.0): given one, the shell emits the ai-summary meta
         // and a WebPage JSON-LD tag from these real fields; with none it emits neither.
@@ -119,7 +121,8 @@ function renderPage(o) {
         release: RELEASE,
         account,
         body: o.body,
-        shipped: o.path === '/' ? frame.shipped({ service: 'coupons', title: `Recently shipped on ${SITE_NAME}` }) : '',
+        // The shipped list is a part a reader rarely needs: a fold on a phone, the section it was where there is room.
+        shipped: o.path === '/' ? foldBlock({ id: 'shipped', head: `<h2 id="cp-shipped-h">Recently shipped on ${SITE_NAME}</h2>`, html: frame.shipped({ service: 'coupons', title: `Recently shipped on ${SITE_NAME}` }) }) : '',
         bodyClass: o.bodyClass,
     });
 }

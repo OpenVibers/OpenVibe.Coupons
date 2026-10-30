@@ -11,6 +11,9 @@
 const ssr = require('openvibe-publishing/ssr');
 const showcase = require('openvibe-shared/showcase');
 const { STATUS_LABEL, shopsSection } = require('./pages');
+// The short home (the owner's rule, 2026-10-30): the three code lists become one pick block, a row of chips picks
+// one of them, and the parts a reader rarely needs become folds.
+const { pickBlock, foldBlock } = require('./short');
 
 const { html: h, raw } = ssr;
 const count = (n) => Number(n).toLocaleString('en-US');
@@ -37,10 +40,10 @@ ${v.attribution ? h`<p class="meta cp-via">via <a href="${v.attribution.url}" re
 </li>`;
 }
 
-function section({ id, title, lede, more, body }) {
+function section({ id, title, lede, more, body, domId = id }) {
     if (!body) return '';
-    return h`<section class="cp-sec" aria-labelledby="${id}">
-<div class="cp-head"><h2 id="${id}">${title}</h2>${more ? h`<a class="cp-more" href="${more.href}">${more.label}<span aria-hidden="true"> →</span></a>` : ''}</div>
+    return h`<section class="cp-sec" aria-labelledby="${domId}">
+<div class="cp-head"><h2 id="${domId}">${title}</h2>${more ? h`<a class="cp-more" href="${more.href}">${more.label}<span aria-hidden="true"> →</span></a>` : ''}</div>
 ${lede ? h`<p class="cp-lede">${lede}</p>` : ''}
 ${raw(String(body))}
 </section>`;
@@ -94,11 +97,21 @@ function homePage(d) {
 
     return h`${hero}
 ${s.active === 0 ? h`<p class="empty cp-empty">No codes are listed yet. <a href="/submit">Submit the first one</a>.</p>` : ''}
-${section({ id: 'cp-working', title: 'Reported working', lede: `Codes people said worked when they tried them in the last ${d.windowDays} days, the most recent first.`, body: cards(d.working, d.now) })}
-${section({ id: 'cp-ending', title: 'Ending soon', lede: 'Codes whose stated end is in the next seven days, soonest first.', body: cards(d.ending, d.now) })}
-${section({ id: 'cp-new', title: 'New codes', lede: 'The latest codes added, newest first. Copy one and paste it at the shop\'s checkout.', more: { href: '/feed.xml', label: 'Follow new codes (RSS)' }, body: cards(d.recent, d.now) })}
+${raw(pickBlock({
+    key: 'codes',
+    label: 'Codes',
+    head: 'Codes',
+    panes: [
+        { id: 'cp-working', label: 'Reported working', html: section({ id: 'cp-working', domId: 'cp-working-h', title: 'Reported working', lede: `Codes people said worked when they tried them in the last ${d.windowDays} days, the most recent first.`, body: cards(d.working, d.now) }) },
+        { id: 'cp-ending', label: 'Ending soon', html: section({ id: 'cp-ending', domId: 'cp-ending-h', title: 'Ending soon', lede: 'Codes whose stated end is in the next seven days, soonest first.', body: cards(d.ending, d.now) }) },
+        { id: 'cp-new', label: 'New codes', html: section({ id: 'cp-new', domId: 'cp-new-h', title: 'New codes', lede: 'The latest codes added, newest first. Copy one and paste it at the shop\'s checkout.', more: { href: '/feed.xml', label: 'Follow new codes (RSS)' }, body: cards(d.recent, d.now) }) },
+    ],
+}))}
 ${raw(String(shopsSection(d.merchants, d.total)))}
-${raw(showcase.features({
+${raw(foldBlock({
+    id: 'companion',
+    head: '<h2 id="cp-companion-h">The OpenVibe Companion</h2>',
+    html: showcase.features({
         title: 'The OpenVibe Companion',
         lede: 'A free, open-source browser extension for Chrome, Edge, Brave and Firefox.',
         items: [
@@ -106,7 +119,8 @@ ${raw(showcase.features({
             { icon: 'ov:check', title: 'Tried when you ask', text: 'At checkout one button types the codes into the shop\'s own coupon box and reads the total before and after.', href: '/companion' },
             { icon: 'ov:shield', title: 'No referral games', text: 'It never rewrites links or adds referral tags, so whoever sent you keeps the credit.', href: '/companion' },
         ],
-    }))}
+    }),
+}))}
 <section class="cp-sec" aria-labelledby="cp-tells"><details class="cp-fold"><summary><h2 id="cp-tells">What every code tells you</h2><span>the shop, the rules, the end, the reports</span></summary>${raw(showcase.features({
         items: [
             { icon: 'ov:coupons', title: 'The right shop', text: 'Each shop lists the domains and paths it covers, so a code is matched to the site you are on.' },
@@ -115,9 +129,17 @@ ${raw(showcase.features({
             { icon: 'ov:community', title: 'Reports from people', text: 'Worked or did not work, recently: the status comes from what people said when they tried it.', href: '/about#statuses' },
         ],
     }))}</details></section>
-<section class="cp-sec" aria-labelledby="cp-faq"><div class="cp-head"><h2 id="cp-faq">Questions and answers</h2></div>
-<div class="cp-faq">${d.faq.map((x) => h`<details><summary>${x.q}</summary><p>${x.a}</p></details>`)}</div></section>
-${raw(showcase.network({ service: 'coupons' }))}
+${raw(foldBlock({
+    id: 'faq',
+    head: '<h2 id="cp-faq-h">Questions and answers</h2>',
+    html: h`<section class="cp-sec" aria-labelledby="cp-faq-h"><div class="cp-head"><h2 id="cp-faq-h-in">Questions and answers</h2></div>
+<div class="cp-faq">${d.faq.map((x) => h`<details><summary>${x.q}</summary><p>${x.a}</p></details>`)}</div></section>`,
+}))}
+${raw(foldBlock({
+    id: 'network',
+    head: '<h2 id="cp-network-h">Part of OpenVibe</h2>',
+    html: showcase.network({ service: 'coupons' }),
+}))}
 <p class="meta"><a href="/about">How statuses and confidence work</a> · <a href="/feed.xml">RSS</a> · <a href="/atom.xml">Atom</a> · <a href="/feed.json">JSON Feed</a></p>`;
 }
 
