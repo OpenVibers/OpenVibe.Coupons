@@ -106,7 +106,7 @@ function renderPage(o) {
         // and a WebPage JSON-LD tag from these real fields; with none it emits neither.
         summary: o.summary,
         styles: [...(o.styles || []), 'kit.css', ...(o.chart ? ['kit-data.css'] : [])],   // shared style names; kit-data.css is the chart's look
-        scripts: [`<script src="${ovServe.url('kit-web.js')}" defer></script>`, ...(o.chart ? [`<script src="${ovServe.url('kit-data-web.js')}" defer></script>`] : [])],   // the kit's behaviour; the page works without it
+        scripts: [`<script src="${ovServe.url('kit-web.js')}" defer></script>`, ...(o.chart ? [`<script src="${ovServe.url('kit-data-web.js')}" defer></script>`] : []), ...(o.scripts || [])],   // the kit's behaviour; the page works without it
         facts: o.facts,
         updated: o.updated,
         url: o.url,

@@ -30,6 +30,7 @@ const { createCoupons } = require('./domain/coupons');
 const { createReports } = require('./domain/reports');
 const { createInstalls } = require('./domain/installs');
 const { createWatches } = require('./domain/watches');
+const { createFacts } = require('./domain/facts');
 const { createModeration } = require('./domain/moderation');
 const { createSourcesImporter } = require('./clients/sources');
 const { createApi } = require('./http/api');
@@ -84,6 +85,8 @@ async function createApp(opts = {}) {
     const reports = createReports({ store, config, coupons, merchants, publication });
     const installs = createInstalls({ store, config });
     const watches = createWatches({ store });
+    // A neighbour's facts about a shop (the latest price we observed for one of its products).
+    const facts = createFacts({ config, log });
     const moderation = createModeration({ store, merchants, coupons, outbox });
     const importer = createSourcesImporter({ store, config, merchants, coupons, fetchImpl, log });
     // Offline session verification and the service-token key share the SDK's process-wide JWKS client.
@@ -107,7 +110,7 @@ async function createApp(opts = {}) {
     const viewers = createViewerResolver({ auth, jwks, config, installs });
     const worker = createWorker({ config, coupons, importer, outbox, log });
 
-    const ctx = { config, store, accountData, accountSend, outbox, publication, merchants, coupons, reports, installs, watches, moderation, importer, auth, jwks, viewers, worker, indexnow };
+    const ctx = { config, store, accountData, accountSend, outbox, publication, merchants, coupons, reports, installs, watches, moderation, importer, auth, jwks, viewers, worker, indexnow, facts };
 
     const app = express();
     app.disable('x-powered-by');

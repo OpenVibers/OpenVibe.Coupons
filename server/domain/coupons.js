@@ -199,6 +199,10 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
                                       COUNT(*) FILTER (WHERE c.status = 'reported_working') AS working
                                  FROM coupons c JOIN coupon_merchants m ON m.id = c.merchant_id WHERE ${ACTIVE_SQL}`),
         reportsSince: db.prepare('SELECT COUNT(*) AS n FROM coupon_validation_reports WHERE updated_at > ?'),
+        // A shop's reports since a moment: one per person and code, the same unit the code's own counts use
+        // (each person's most recent report on a code counts once).
+        merchantReports: db.prepare(`SELECT COUNT(*) AS n FROM (SELECT DISTINCT r.coupon_id, r.reporter_key FROM coupon_validation_reports r
+                                       JOIN coupons c ON c.id = r.coupon_id WHERE c.merchant_id = @merchant AND r.updated_at > @since) x`),
         allActive: db.prepare(`SELECT c.* FROM coupons c JOIN coupon_merchants m ON m.id = c.merchant_id WHERE ${ACTIVE_SQL} ORDER BY c.created_at DESC LIMIT 50000`),
         activePage: db.prepare(`SELECT c.* FROM coupons c JOIN coupon_merchants m ON m.id = c.merchant_id WHERE ${ACTIVE_SQL} ORDER BY c.id LIMIT @limit OFFSET @offset`),
         allPage: db.prepare('SELECT c.* FROM coupons c ORDER BY c.id LIMIT @limit OFFSET @offset'),
@@ -633,6 +637,8 @@ function createCoupons({ store, merchants, publication, outbox = null }) {
             return out;
         },
         merchantHints: async (merchantId) => await q.merchantHints.all(merchantId),
+        /** How many reports a shop's codes collected since a moment (one per person and code). */
+        merchantReportsSince: async (merchantId, sinceMs) => Number((await q.merchantReports.get({ merchant: merchantId, since: sinceMs })).n) || 0,
     };
 }
 

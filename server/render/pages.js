@@ -245,55 +245,6 @@ function shopTab(query, active) {
     return asked || (codes || !active.length ? 'codes' : 'deals');
 }
 
-/**
- * A shop (GET /m/:slug): the head (the shop, its codes, Watch, Submit and more as icons), the best code right now, and
- * one tab at a time. ended is only read for the Codes tab (the route passes [] otherwise).
- */
-function merchant({ m, domains, hints, active, ended, success = null, viewer, csrf, watching, back, flashMsg, tab = 'codes' }) {
-    const codes = active.filter((v) => !isProductDeal(v));
-    const deals = active.filter(isProductDeal);
-    const shopUrl = m.homepage_url || null;
-    const base = `/m/${m.slug}`;
-    const tabs = kit.tabs({ base, active: tab, label: `${m.name} sections`, items: [
-        { key: 'codes', label: 'Codes', count: codes.length },
-        ...(deals.length ? [{ key: 'deals', label: 'Product deals', count: deals.length }] : []),
-        { key: 'about', label: 'About' },
-    ] });
-    const watchForm = viewer && viewer.kind === 'user'
-        ? String(h`<form method="post" action="/m/${m.slug}/watch" class="ovk-inline">${hidden(csrf)}<input type="hidden" name="action" value="${watching ? 'unwatch' : 'watch'}">${k(kit.iconButton({ icon: 'bell', label: watching ? 'Stop watching this shop (while you watch, new codes reach your OpenVibe notifications)' : 'Watch this shop (private to you; new codes reach your OpenVibe notifications)', kind: watching ? 'on' : '' }))}</form>`)
-        : '';
-    const head = kit.head({
-        title: `${m.name} coupon codes`,
-        subHtml: String(h`${shopUrl ? h`<a href="${shopUrl}" rel="nofollow noopener">${hostOf(shopUrl)}</a> · ` : ''}${String(active.length)} active code${active.length === 1 ? '' : 's'}`),
-        back: { href: '/', label: 'All shops' },
-        actions: [watchForm, kit.iconButton({ href: `/submit?merchant=${encodeURIComponent(m.slug)}`, icon: 'plus', label: `Submit a code for ${m.name}` }),
-            kit.more({ label: 'More', items: [{ href: '/about', label: 'How codes are labelled', icon: 'help' }, { href: `${base}/feed.xml`, label: 'RSS feed', icon: 'link' }, { href: `${base}.json`, label: 'As JSON', icon: 'code' }] })],
-        tabs,
-    });
-    const best = codes.filter((v) => v.status === 'reported_working' && v.confidence != null).sort((a, b) => b.confidence - a.confidence)[0];
-    const card = (v) => couponCard(v, { viewer, csrf, back, link: true, shopUrl });
-    let body;
-    if (tab === 'about') {
-        body = h`<section class="ovk-section"><h2>The shop</h2><p class="ovk-note">${shopUrl ? h`<a href="${shopUrl}" rel="nofollow noopener">${hostOf(shopUrl)}</a>. ` : ''}Covers ${domains.map((d, i) => h`${i ? '; ' : ''}${d.host}${d.path_prefix || ''}${d.include_subdomains ? ' and its subdomains' : ''}`)}.</p>
-${m.description ? h`<p class="ovk-note">${m.description}</p>` : ''}
-${hints.length ? h`<ul class="hints ovk-note">${hints.map((x) => h`<li>How to apply codes here: ${x.text}</li>`)}</ul>` : ''}</section>
-<section class="ovk-section"><h2>How codes are labelled</h2><p class="ovk-note">A code is only called working when people reported recently that it worked; nobody else can set that, not the submitter, staff, a source or an AI model. An expiry is shown only when someone stated it, and restrictions only when they were stated. <a href="/about">The whole method</a>.</p></section>
-<p class="meta">Follow: <a href="${base}/feed.xml">RSS</a> · <a href="${base}.json">JSON</a></p>`;
-    } else if (tab === 'deals') {
-        body = h`<p class="ovk-note cpn-lede">Codes that take money off one product, as the source posted them.</p>
-${deals.length ? deals.map(card) : h`<p class="empty">No product deals for ${m.name} right now.</p>`}`;
-    } else {
-        body = h`${best ? h`<a class="cpn-best" href="#${best.id}"><span>Best code now</span><strong>${headline(best)}</strong><code>${best.code}</code><span class="meta">${`Confidence ${Math.round(best.confidence * 100)}%`}</span></a>` : ''}
-${codes.length ? codes.map(card) : active.length ? h`<p class="empty">No code for the whole shop right now; ${String(deals.length)} product deal${deals.length === 1 ? '' : 's'} <a href="${base}?tab=deals">in Product deals</a>.</p>` : h`<p class="empty">No active codes for ${m.name} right now.</p>`}
-<p>${k(kit.button({ href: `/submit?merchant=${encodeURIComponent(m.slug)}`, label: `Submit a code for ${m.name}`, icon: 'plus', kind: 'quiet', small: true }))}</p>
-${ended.length ? k(kit.fold({ title: 'Recently ended (not in active results)', meta: String(ended.length), body: String(h`<ul class="ended">${ended.map((v) => h`<li><code>${v.code}</code> — ${v.title} · ${v.status === 'expired' ? 'expired' : 'past its expiry'} ${v.expired_at ? v.expired_at.slice(0, 10) : v.expiry.expires_at ? v.expiry.expires_at.slice(0, 10) : ''}</li>`)}</ul>`) })) : ''}`;
-    }
-    return h`${k(head)}
-${flash(flashMsg)}
-${tab === 'about' ? '' : merchantTrend(success, m.name)}
-${body}`;
-}
-
 /** A week's Monday, for the buckets the API leaves null when fewer than 3 people reported. */
 const DAY = 86400000;
 const weekAt = (trend, i) => new Date(Date.parse(`${trend.from}T00:00:00Z`) + i * 7 * DAY).toISOString().slice(0, 10);
@@ -520,4 +471,5 @@ function message({ heading, text, action }) {
 }
 
 module.exports = {
-    shopTab, isProductDeal, headline, moneyOf, symbolOf, currencyOf, home, shopsSection, merchant, couponPage, couponCard, about, submitForm, submitted, connect, companion, COMPANION_RELEASE, watching, staff, message, STATUS_LABEL, SITE_SUMMARY };
+    shopTab, isProductDeal, headline, moneyOf, symbolOf, currencyOf, home, shopsSection, merchantTrend, couponPage, couponCard, about, submitForm, submitted, connect, companion, COMPANION_RELEASE, watching, staff, message, STATUS_LABEL, SITE_SUMMARY,
+    regionName, BASIS_LABEL };
