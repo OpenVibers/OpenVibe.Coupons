@@ -54,8 +54,9 @@ const { boot, check, done } = require('./helpers/boot');
         assert.strictEqual(r.headers.get('location'), `/m/${shop.slug}?done=reported`);
         const after = await t.get(`/m/${shop.slug}?done=reported`, { as: bob });
         assert.match(after.text, /your report was recorded/);
-        assert.match(after.text, /Reported working/);
-        assert.match(after.text, /Confidence 67%/);
+        // The store page rates a code by what people reported, never by a confidence number.
+        assert.match(after.text, /Validity unknown \(1 report\)/);
+        assert.doesNotMatch(after.text, /Confidence \d+%/, 'no confidence number on the store page');
         const offsite = await t.get(`/c/${codeId}/report`, { as: bob, form: { csrf: t.csrf(bob), outcome: 'worked', back: 'https://evil.example-shop.com/' } });
         assert.strictEqual(offsite.headers.get('location'), `/c/${codeId}?done=report_same`, 'no open redirect');
         const w = await t.get(`/m/${shop.slug}/watch`, { as: alice, form: { csrf: t.csrf(alice), action: 'watch' } });

@@ -108,6 +108,11 @@ function load(env = process.env) {
             intervalMs: int(env.COUPONS_SWEEP_INTERVAL_MS, 60 * 1000),
         },
 
+        // Our neighbours' public facts about a shop (OpenVibe.Deals: the latest price we observed for
+        // one of its products). The store page shows such a fact with the date it was observed; a neighbour
+        // that is down or slow never delays the page.
+        dealsUrl: trim(env.COUPONS_DEALS_API_URL || 'https://openvibe.deals'),
+
         // IndexNow (openvibe-shared/indexnow): a key makes search engines recrawl a page the moment it
         // appears, changes or leaves the index. Unset: IndexNow is off — no key file, no requests.
         indexnowKey: String(env.INDEXNOW_KEY || '').trim(),

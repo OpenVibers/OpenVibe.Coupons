@@ -27,6 +27,7 @@ const cache = require('openvibe-shared/cache-policy');
 const seo = require('openvibe-publishing/seo');
 const { renderPage, oneGraph } = require('../render/layout');
 const pages = require('../render/pages');
+const shop = require('../render/store');
 const offer = require('../render/offer');
 const home = require('../render/home');
 // The short home (the owner's rule, 2026-10-30): pick blocks and folds.
@@ -264,23 +265,34 @@ function createPublicRoutes(ctx) {
     router.get('/m/:slug', async (req, res) => {
         const m = await visibleMerchant(req, res);
         if (!m) return;
+        const now = store.now();
         const active = await Promise.all((await coupons.active(m.id)).map(async (c) => await coupons.view(c, { merchant: m })));
-        // One tab at a time (?tab=codes|deals|about): the recently ended codes are only read for Codes, where they fold.
+        // The codes for the whole shop and the codes for one product are two tabs, and one tab opens at a time
+        // (?tab=codes|deals|about). The recently ended codes are only read for Codes, where they fold.
+        const codes = active.filter((v) => !pages.isProductDeal(v));
+        const deals = active.filter(pages.isProductDeal);
         const tab = pages.shopTab(req.query, active);
         const ended = tab === 'codes' ? await Promise.all((await coupons.recentlyEnded(m.id)).map(async (c) => await coupons.view(c, { merchant: m }))) : [];
         const decision = publication.merchantDecision(m, active.length);
         const flashMsg = FLASH[req.query.done] || null;
-        // The success chart summarises every code, so it sits on the Codes and Product deals tabs (not About).
+        // The success chart summarises every code of the shop: it sits under the codes and the product deals.
         const success = tab === 'about' ? null : await coupons.merchantWeeks(m.id);
+        const domains = await merchants.domains(m);
+        // What people reported about this shop's codes this week (one report per person and code).
+        const reportsThisWeek = await coupons.merchantReportsSince(m.id, now - 7 * DAY);
+        // A neighbour's fact about the shop (the latest price we observed for one of its products), when it has one.
+        const price = tab === 'about' ? await ctx.facts.latestPrice(domains[0] && domains[0].host) : null;
         send(req, res, 200, {
             title: `${m.name} coupon codes`,
             description: active.length ? `${active.length} active code${active.length === 1 ? '' : 's'} for ${m.name}, with restrictions, expiry and people's reports.` : `No active codes for ${m.name} right now.`,
             decision, canonical: publication.merchantUrl(m), jsonLd: jsonLd(m, null),
             feeds: [{ type: 'rss', href: `/m/${m.slug}/feed.xml`, title: `${m.name} codes (RSS)` }],
             chart: true,
-            body: pages.merchant({
-                m, domains: await merchants.domains(m), hints: await coupons.merchantHints(m.id), active, ended, success,
-                viewer: req.viewer, csrf: csrf(req), back: `/m/${m.slug}${tab === 'codes' ? '' : `?tab=${tab}`}`, flashMsg, tab,
+            scripts: tab === 'codes' ? [shop.STICKY_SCRIPT] : [],
+            body: shop.storePage({
+                m, domains, hints: await coupons.merchantHints(m.id), codes, deals, ended, reportsThisWeek, price,
+                now, windowDays: confidence.WINDOW_DAYS,
+                viewer: req.viewer, csrf: csrf(req), back: `/m/${m.slug}${tab === 'codes' ? '' : `?tab=${tab}`}`, flashMsg, tab, success,
                 watching: await watches.isWatching(req.viewer.subject, m),
             }),
         }, { cacheable: !flashMsg });
