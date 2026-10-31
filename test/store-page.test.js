@@ -148,6 +148,25 @@ function bestCardCode(html) {
         assert.doesNotMatch(about.text, /verified/i);
     });
 
+    await check('product deals show twenty at a time, with a link to the next ones (Amazon had 200 on one page)', async () => {
+        const shop = await t.merchant({ name: 'Deals Shop', host: 'deals-shop.com' });
+        const people = Array.from({ length: 5 }, (_, i) => t.network.addUser('dealer-' + i));
+        let n = 0;
+        while (n < 25) {
+            await submitCode(t, people[n % 5], shop.slug, 'DEAL' + String(n).padStart(3, '0'), 'Widget ' + n + ' for $' + (10 + n));
+            n++;
+        }
+        const first = await t.get('/m/' + shop.slug + '?tab=deals');
+        assert.strictEqual(first.status, 200);
+        assert.strictEqual((first.text.match(/One product/g) || []).length, 20, 'the first page shows twenty');
+        assert.match(first.text, /href="\/m\/[^"]+\?tab=deals&amp;deals=25">Show 5 more/, 'and a link to the rest');
+        const all = await t.get('/m/' + shop.slug + '?tab=deals&deals=25');
+        assert.strictEqual((all.text.match(/One product/g) || []).length, 25, 'the link shows them all');
+        assert.doesNotMatch(all.text, /Show \d+ more/, 'with nothing left to show, no link');
+        const silly = await t.get('/m/' + shop.slug + '?tab=deals&deals=-4');
+        assert.strictEqual((silly.text.match(/One product/g) || []).length, 20, 'a nonsense count falls back to a page');
+    });
+
     await t.close();
     done();
 })();

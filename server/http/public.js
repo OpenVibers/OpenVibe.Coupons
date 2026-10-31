@@ -293,6 +293,7 @@ function createPublicRoutes(ctx) {
                 m, domains, hints: await coupons.merchantHints(m.id), codes, deals, ended, reportsThisWeek, price,
                 now, windowDays: confidence.WINDOW_DAYS,
                 viewer: req.viewer, csrf: csrf(req), back: `/m/${m.slug}${tab === 'codes' ? '' : `?tab=${tab}`}`, flashMsg, tab, success,
+                dealsShown: Math.min(500, Math.max(0, Math.floor(Number(req.query.deals)) || 0)),
                 watching: await watches.isWatching(req.viewer.subject, m),
             }),
         }, { cacheable: !flashMsg });

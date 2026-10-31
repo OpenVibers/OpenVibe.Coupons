@@ -210,7 +210,10 @@ ${facts}</section>` : h`<section class="ovk-section"><h2>Quick facts</h2><p clas
  * The store page. codes: the shop's active codes (a code for the whole shop), deals: the codes for one product,
  * ended: the codes that ended, reportsThisWeek: how many reports the shop's codes collected this week.
  */
-function storePage({ m, domains, hints, codes, deals, ended, reportsThisWeek, price, now, windowDays, viewer, csrf, watching, back, flashMsg, tab = 'codes', success = null }) {
+// Product deals show a page at a time (2026-10-31: Amazon's 200 made its store page 62 phone screens long).
+const DEALS_PAGE = 20;
+
+function storePage({ m, domains, hints, codes, deals, ended, reportsThisWeek, price, now, windowDays, viewer, csrf, watching, back, flashMsg, tab = 'codes', success = null, dealsShown = DEALS_PAGE }) {
     const base = `/m/${m.slug}`;
     const host = (domains[0] && domains[0].host) || (m.homepage_url ? hostOf(m.homepage_url) : m.name);
     const all = [...codes, ...deals];
@@ -239,12 +242,14 @@ function storePage({ m, domains, hints, codes, deals, ended, reportsThisWeek, pr
 
     const flashMsgHtml = flashMsg ? h`<p class="notice" role="status">${flashMsg}</p>` : '';
 
+    const shown = Math.max(DEALS_PAGE, Math.min(deals.length, Math.floor(Number(dealsShown)) || DEALS_PAGE));
     let body;
     if (tab === 'about') {
         body = h`${aboutTab({ m, domains, hints, codes: all, price, now, windowDays })}`;
     } else if (tab === 'deals') {
         body = h`<p class="ovk-note cpn-lede">Codes that take money off one product, as the source posted them.</p>
-${deals.length ? h`${deals.map((v) => couponCard(v, { viewer, csrf, back, link: true, shopUrl: m.homepage_url }))}` : h`<p class="empty">No product deals for ${m.name} right now.</p>`}
+${deals.length ? h`${deals.slice(0, shown).map((v) => couponCard(v, { viewer, csrf, back, link: true, shopUrl: m.homepage_url }))}
+${shown < deals.length ? h`<p class="cpn-more"><a class="ovk-btn ovk-btn--quiet" href="${base}?tab=deals&amp;deals=${String(Math.min(deals.length, shown + DEALS_PAGE))}">Show ${String(Math.min(DEALS_PAGE, deals.length - shown))} more <span class="cpn-muted">(${String(shown)} of ${String(deals.length)})</span></a></p>` : ''}` : h`<p class="empty">No product deals for ${m.name} right now.</p>`}
 ${merchantTrend(success, m.name)}`;
     } else if (!codes.length) {
         // A shop with no codes says so, and offers the watch that tells us when one appears.
