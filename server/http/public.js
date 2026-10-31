@@ -31,7 +31,7 @@ const shop = require('../render/store');
 const offer = require('../render/offer');
 const home = require('../render/home');
 // The short home (the owner's rule, 2026-10-30): pick blocks and folds.
-const { pickRules } = require('../render/short');
+const { foldBlock } = require('../render/short');
 const { csrfToken, checkCsrf } = require('../auth/forms');
 const { ApiError } = require('./errors');
 const confidence = require('../domain/confidence');
@@ -174,7 +174,6 @@ function createPublicRoutes(ctx) {
             // The service's own one-line summary: the shell turns it into the ai-summary meta and the WebPage JSON-LD.
             summary: pages.SITE_SUMMARY, styles: [showcase.STYLESHEET], bodyClass: 'home',
             // The rule that shows the picked block of the codes' pick block: one per block, written for this page.
-            inlineStyles: [`@supports selector(:has(*)){@media (max-width:640px){${pickRules('codes', ['cp-working', 'cp-ending', 'cp-new'])}}}`],
             feeds: [{ type: 'rss', href: '/feed.xml', title: 'New codes (RSS)' }, { type: 'atom', href: '/atom.xml', title: 'New codes (Atom)' }, { type: 'json', href: '/feed.json', title: 'New codes (JSON Feed)' }],
             jsonLd: [
                 { '@context': 'https://schema.org', '@type': 'WebSite', name: 'OpenVibe.Coupons', url: `${config.baseUrl}/`, potentialAction: { '@type': 'SearchAction', target: `${config.baseUrl}/?q={q}`, 'query-input': 'required name=q' } },
