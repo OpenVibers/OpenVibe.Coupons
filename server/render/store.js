@@ -22,6 +22,7 @@ const k = (markup) => raw(String(markup));
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 const { isProductDeal, headline, shopTab, merchantTrend, couponCard, regionName, BASIS_LABEL } = require('./pages');
+const { remindLink, remindIcon } = require('./remind');
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 /** Below this many reports a code's rate is not shown at all: the page says only that validity is unknown. */
@@ -133,34 +134,39 @@ function reportForms(v, { csrf, back }) {
 }
 
 /** The best code, first on the page: the code in a dashed box, its rate, when it was last reported and its expiry. */
-function bestCard(v, { now, windowDays, csrf, back }) {
+function bestCard(v, { now, windowDays, csrf, back, shop = '' }) {
     const lr = lastReport(v, now, windowDays);
     const ex = expiryOf(v);
     const limits = restrictionText(v.restrictions);
     const codeId = v.id;
+    // "Remind me" for the moment the code ends (plan L48 R3): only when the end is known and still ahead.
+    const remind = remindLink(v, { now, shop });
     return h`<section class="cpn-best-card" id="cpn-best-card" aria-labelledby="cpn-best-h">
 <h2 class="cpn-best-label" id="cpn-best-h">Best code right now</h2>
 <p class="cpn-best-head"><strong class="cpn-off">${headline(v)}</strong> <a class="cpn-best-title" href="/c/${v.id}">${v.title}</a></p>
 <div class="cpn-codebox"><code class="cpn-codetext" id="${codeId}">${v.code}</code>${k(copyButton(codeId))}</div>
 <p class="cpn-status-line">${statusText(v)}</p>
 <p class="cpn-meta">${lr.iso ? h`<time datetime="${lr.iso}">${lr.text}</time>` : lr.text}</p>
-<p class="cpn-meta">${ex ? h`${ex.short}${ex.said ? h` (${ex.said})` : ''}` : h`<span class="unknown">Expiry unknown</span>`}</p>
+<p class="cpn-meta">${ex ? h`${ex.short}${ex.said ? h` (${ex.said})` : ''}` : h`<span class="unknown">Expiry unknown</span>`}${remind ? k(remind) : ''}</p>
 ${limits.length ? h`<p class="cpn-meta cpn-limits">${limits.join(' · ')}</p>` : h`<p class="cpn-meta cpn-limits">No restrictions stated. That does not mean there are none.</p>`}
 <div class="cpn-votes">${reportForms(v, { csrf, back })}</div>
 </section>`;
 }
 
 /** One code as a compact row: the code, the same facts and the same buttons. */
-function codeRow(v, { now, windowDays, csrf, back }) {
+function codeRow(v, { now, windowDays, csrf, back, shop = '' }) {
     const lr = lastReport(v, now, windowDays);
     const ex = expiryOf(v);
     const facts = [statusText(v), lr.text, ex ? (ex.said ? `${ex.short} (${ex.said})` : ex.short) : 'Expiry unknown'];
     const limits = restrictionText(v.restrictions);
     const codeId = v.id;
+    // "Remind me" for the moment the code ends (plan L48 R3), with the row's other actions; only when the end is
+    // known and still ahead. The row is narrow, so the link is the bell alone.
+    const remind = remindIcon(v, { now, shop });
     return kit.row({
         titleHtml: `<a class="cpn-row-code" href="/c/${v.id}"><code>${esc(v.code)}</code></a> <span class="cpn-row-off">${esc(headline(v))}</span>`,
         subHtml: `<span class="cpn-row-facts">${esc(facts.join(' · '))}</span>${limits.length ? `<span class="cpn-row-limits">${esc(limits.join(' · '))}</span>` : ''}`,
-        trail: `${copyButton(codeId, { small: true, kind: 'quiet' })}${reportForms(v, { csrf, back })}`,
+        trail: `${copyButton(codeId, { small: true, kind: 'quiet' })}${remind}${reportForms(v, { csrf, back })}`,
     });
 }
 
@@ -248,7 +254,7 @@ function storePage({ m, domains, hints, codes, deals, ended, reportsThisWeek, pr
         body = h`${aboutTab({ m, domains, hints, codes: all, price, now, windowDays })}`;
     } else if (tab === 'deals') {
         body = h`<p class="ovk-note cpn-lede">Codes that take money off one product, as the source posted them.</p>
-${deals.length ? h`${deals.slice(0, shown).map((v) => couponCard(v, { viewer, csrf, back, link: true, shopUrl: m.homepage_url }))}
+${deals.length ? h`${deals.slice(0, shown).map((v) => couponCard(v, { viewer, csrf, back, link: true, shopUrl: m.homepage_url, now, shop: m.name }))}
 ${shown < deals.length ? h`<p class="cpn-more"><a class="ovk-btn ovk-btn--quiet" href="${base}?tab=deals&amp;deals=${String(Math.min(deals.length, shown + DEALS_PAGE))}">Show ${String(Math.min(DEALS_PAGE, deals.length - shown))} more <span class="cpn-muted">(${String(shown)} of ${String(deals.length)})</span></a></p>` : ''}` : h`<p class="empty">No product deals for ${m.name} right now.</p>`}
 ${merchantTrend(success, m.name)}`;
     } else if (!codes.length) {
@@ -261,8 +267,8 @@ ${deals.length ? h`<p class="ovk-note">${String(deals.length)} product deal${dea
 </section>
 ${ended.length ? k(kit.fold({ title: 'Expired', meta: String(ended.length), body: String(kit.list(ended.map(endedRow))) })) : ''}`;
     } else {
-        body = h`${best ? bestCard(best, { now, windowDays, csrf, back }) : ''}
-${others.length ? k(`<div class="cpn-list">${kit.list(others.map((v) => codeRow(v, { now, windowDays, csrf, back })), { title: 'Other codes' })}</div>`) : ''}
+        body = h`${best ? bestCard(best, { now, windowDays, csrf, back, shop: m.name }) : ''}
+${others.length ? k(`<div class="cpn-list">${kit.list(others.map((v) => codeRow(v, { now, windowDays, csrf, back, shop: m.name })), { title: 'Other codes' })}</div>`) : ''}
 ${merchantTrend(success, m.name)}
 <p class="cpn-submit">${k(kit.button({ href: `/submit?merchant=${encodeURIComponent(m.slug)}`, label: `Submit a code for ${m.name}`, icon: 'plus', kind: 'quiet', small: true }))}</p>
 ${ended.length ? k(kit.fold({ title: 'Expired', meta: String(ended.length), body: String(kit.list(ended.map(endedRow))) })) : ''}`;
