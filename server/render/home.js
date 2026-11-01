@@ -11,6 +11,7 @@
 const ssr = require('openvibe-publishing/ssr');
 const showcase = require('openvibe-shared/showcase');
 const { STATUS_LABEL, shopsSection } = require('./pages');
+const { remindLink } = require('./remind');
 // The short home (the owner's rule, 2026-10-30): the three code lists become one pick block, a row of chips picks
 // one of them, and the parts a reader rarely needs become folds.
 const { pickBlock, foldBlock } = require('./short');
@@ -31,11 +32,15 @@ function until(iso, now) {
 function codeCard(v, m, now) {
     const min = (v.restrictions || []).find((r) => r.kind === 'min_spend');
     const rules = [min ? `Minimum spend ${min.amount}` : null, (v.restrictions || []).some((r) => r.kind === 'new_customers_only') ? 'New customers only' : null].filter(Boolean);
+    // "Remind me" for the moment the code ends (plan L48 R3): a quiet link in the card's own line, only when the end
+    // is known and still ahead.
+    const remind = remindLink(v, { now, shop: m.name });
     return h`<li class="cp-card">
 <p class="cp-top"><a class="cp-shop" href="/m/${m.slug}">${m.name}</a> <span class="status status-${v.status}">${STATUS_LABEL[v.status] || v.status}</span></p>
 <p class="cp-code"><span class="sr-only">Code: </span><code class="code">${v.code}</code></p>
 <h3><a href="/c/${v.id}">${v.title}</a></h3>
 <p class="meta">${v.expiry.known ? h`Ends <time datetime="${v.expiry.expires_at}" title="${v.expiry.expires_at.slice(0, 16).replace('T', ' ')} UTC">${until(v.expiry.expires_at, now)}</time>` : h`<span class="unknown">No end date stated</span>`}${rules.length ? h` · ${rules.join(' · ')}` : ''}</p>
+${remind ? h`<p class="meta">${raw(remind)}</p>` : ''}
 ${v.attribution ? h`<p class="meta cp-via">via <a href="${v.attribution.url}" rel="nofollow noopener">${v.attribution.text}</a></p>` : ''}
 </li>`;
 }

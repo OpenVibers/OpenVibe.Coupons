@@ -10,6 +10,7 @@
  */
 const ssr = require('openvibe-publishing/ssr');
 const kit = require('openvibe-shared/kit');
+const { remindLink } = require('./remind');
 
 const { html: h, raw } = ssr;
 const k = (markup) => raw(String(markup));   // a kit builder's markup (already escaped) inside an h`` template
@@ -171,17 +172,21 @@ function quickReport(v, { viewer, csrf, back }) {
     return h`<div class="cpn-report"><span>Did it work?</span>${one('worked', 'It worked')}${one('failed', "It didn't")}</div>`;
 }
 
-/** One code. v: coupons.view(); opts: { viewer, csrf, back, link, page, shopUrl } (page: its own page, where the title is the h1) */
+/** One code. v: coupons.view(); opts: { viewer, csrf, back, link, page, shopUrl, now, shop } (page: its own page, where the title is the h1) */
 function couponCard(v, opts = {}) {
     const title = opts.link ? h`<a href="/c/${v.id}">${v.title}</a>` : v.title;
     // The currency the code states for its money, shown beside the amount on the code's own page: the page
     // says which currency it is in, and the page's structured data claims nothing more than that.
     const currency = opts.page ? currencyOf(v, moneyOf(v)) : null;
+    // "Remind me" for the moment the code ends (plan L48 R3): on the code's own page it sits with the other actions,
+    // on a card it is a quiet link in the card's own line. Only when the end is known and still ahead.
+    const remind = remindLink(v, { now: opts.now, shop: opts.shop });
     return h`<article class="coupon cpn cpn--${v.status}" id="${v.id}">
 <div class="cpn-top"><strong class="cpn-off">${headline(v)}</strong>${isProductDeal(v) ? h`<span class="cpn-scope">One product</span>` : ''}${currency ? h`<span class="cpn-scope">${currency}</span>` : ''}</div>
 ${opts.page ? h`<h1 class="coupon-title">${title}</h1>` : h`<h3 class="cpn-title">${title}</h3>`}
-<div class="cpn-code"><code class="code" id="code-${v.id}">${v.code}</code>${k(kit.iconButton({ type: 'button', icon: 'copy', label: `Copy ${v.code}`, attrs: { 'data-ovk-copy': `#code-${v.id}`, hidden: true } }))}${opts.shopUrl ? k(kit.button({ href: opts.shopUrl, label: 'Shop', icon: 'open', kind: 'quiet', small: true, attrs: { rel: 'nofollow noopener', target: '_blank' } })) : ''}</div>
+<div class="cpn-code"><code class="code" id="code-${v.id}">${v.code}</code>${k(kit.iconButton({ type: 'button', icon: 'copy', label: `Copy ${v.code}`, attrs: { 'data-ovk-copy': `#code-${v.id}`, hidden: true } }))}${opts.shopUrl ? k(kit.button({ href: opts.shopUrl, label: 'Shop', icon: 'open', kind: 'quiet', small: true, attrs: { rel: 'nofollow noopener', target: '_blank' } })) : ''}${opts.page && remind ? k(remind) : ''}</div>
 ${statusLine(v)}
+${!opts.page && remind ? h`<p class="meta">${k(remind)}</p>` : ''}
 ${restrictionChips(v.restrictions)}
 ${quickReport(v, opts)}
 <details class="cpn-more"${opts.page ? ' open' : ''}><summary>Details</summary>
@@ -303,11 +308,11 @@ function merchantTrend(trend, name) {
 <p class="meta">A week with fewer than ${trend.min_people} people is too few to show, so it stays blank.</p>`);
 }
 
-function couponPage({ v, m, history, weeks, viewer, csrf, back, flashMsg }) {
+function couponPage({ v, m, history, weeks, viewer, csrf, back, flashMsg, now = Date.now() }) {
     return h`${raw(ssr.breadcrumbsHtml([{ name: 'Coupons', url: '/' }, { name: m.name, url: `/m/${m.slug}` }, { name: v.code }]))}
 ${flash(flashMsg)}
 ${v.active ? '' : h`<p class="notice">This code is not in active results (${STATUS_LABEL[v.status] ? STATUS_LABEL[v.status].toLowerCase() : v.status}${v.expiry.known && !v.active && v.status !== 'expired' ? ', past its expiry' : ''}).</p>`}
-${couponCard(v, { viewer, csrf, back, page: true })}
+${couponCard(v, { viewer, csrf, back, page: true, now, shop: m.name })}
 <p class="cpn-people">${peopleLine(v)}</p>
 ${reportTrend(weeks)}
 <h2>Status history</h2>

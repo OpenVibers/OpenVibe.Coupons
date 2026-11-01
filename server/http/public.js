@@ -338,7 +338,7 @@ function createPublicRoutes(ctx) {
             title: `${v.code} — ${v.title} at ${m.name}`,
             description: couponDescription(v, m),
             decision: publication.couponDecision(c, m), canonical: v.url, jsonLd: jsonLd(m, v),
-            body: pages.couponPage({ v, m, history: await coupons.history(c.id), weeks: await coupons.reportWeeks(c.id), viewer: req.viewer, csrf: csrf(req), back: `/c/${c.id}`, flashMsg }), chart: true,
+            body: pages.couponPage({ v, m, history: await coupons.history(c.id), weeks: await coupons.reportWeeks(c.id), viewer: req.viewer, csrf: csrf(req), back: `/c/${c.id}`, flashMsg, now: store.now() }), chart: true,
         }, { cacheable: !flashMsg });
     });
 
