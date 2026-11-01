@@ -343,7 +343,7 @@ function about({ confidence }) {
 
 function submitForm({ values = {}, errs = [], csrf, viewer, merchantName = null }) {
     if (!viewer || viewer.kind !== 'user') {
-        return h`<h1>Submit a code</h1><p><a href="/auth/login?next=%2Fsubmit">Sign in with OpenVibe</a> to submit a code. Submitted codes start as “validity unknown” until people report on them.</p>`;
+        return h`<h1>Submit a code</h1><p>Submitted codes start as “validity unknown” until people report on them.</p><p><a class="ovk-btn ovk-btn--primary" href="/auth/login?next=%2Fsubmit">Sign in to submit a code</a></p>`;
     }
     const v = (k) => values[k] || '';
     return h`<h1>Submit a code</h1>
@@ -391,7 +391,7 @@ function connect({ viewer, installs, csrf, created, errs = [] }) {
 <li>When you ask it to try codes, it reads the checkout page in your browser; nothing from the page is sent anywhere. It never sends full addresses and has no access to your OpenVibe account: the token below can only look up codes and (if you allow it) report on them.</li>
 <li>Revoking a token here takes effect on its next request.</li>
 </ul>`;
-    if (!viewer || viewer.kind !== 'user') return h`${intro}<p><a href="/auth/login?next=%2Fconnect-extension">Sign in with OpenVibe</a> to create a token.</p>`;
+    if (!viewer || viewer.kind !== 'user') return h`${intro}<p><a class="ovk-btn ovk-btn--primary" href="/auth/login?next=%2Fconnect-extension">Sign in to create a token</a></p>`;
     return h`${intro}
 ${errors(errs)}
 ${created ? h`<div class="token-once" role="status"><p><strong>Your token for “${created.install.label}”</strong> — copy it into the helper's settings now. It is shown only once.</p><p><code class="token">${created.token}</code></p></div>` : ''}
