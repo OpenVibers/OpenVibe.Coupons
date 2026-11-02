@@ -288,7 +288,9 @@ function createPublicRoutes(ctx) {
             decision, canonical: publication.merchantUrl(m), jsonLd: jsonLd(m, null),
             feeds: [{ type: 'rss', href: `/m/${m.slug}/feed.xml`, title: `${m.name} codes (RSS)` }],
             chart: true,
-            scripts: tab === 'codes' ? [shop.STICKY_SCRIPT] : [],
+            // The best code is the first thing on the Codes tab and, for a shop with only product deals, on the
+            // Product deals tab it opens on; the slim bar follows it on both.
+            scripts: tab === 'codes' || (tab === 'deals' && !codes.length) ? [shop.STICKY_SCRIPT] : [],
             body: shop.storePage({
                 m, domains, hints: await coupons.merchantHints(m.id), codes, deals, ended, reportsThisWeek, price,
                 now, windowDays: confidence.WINDOW_DAYS,

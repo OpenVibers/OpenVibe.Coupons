@@ -58,9 +58,11 @@ function bestCardCode(html) {
         const html = page.text;
         assert.strictEqual(bestCardCode(html), 'SAVE20', 'the code with the highest share of people who said it worked');
         assert.match(html, /87% worked \(23 reports\)/, 'the rate and its sample size');
+        assert.match(html, /87% worked \(23 reports\) · last worked today/, 'the best code also says when it last worked');
         assert.match(html, /80% worked \(10 reports\)/);
         assert.match(html, /60% worked \(5 reports\)/, 'five reports are enough for a rate');
         assert.match(html, /Validity unknown \(4 reports\)/, 'under five reports: only that validity is unknown');
+        assert.match(html, /No reports yet/, 'a code nobody reported on says so, not "Validity unknown"');
         assert.doesNotMatch(html, /Validity unknown \(0 reports\)/, 'no count is invented');
 
         // The other codes follow the same order: the most evidence first, the code nobody reported on last.
@@ -86,8 +88,10 @@ function bestCardCode(html) {
         const shop = await t.merchant({ name: 'Late Shop', host: 'late-shop.com' });
         const stale = await submitCode(t, alice, shop.slug, 'OLDC', 'Old code');
         await report(t, stale, 'worked', 2);
+        const never = await submitCode(t, alice, shop.slug, 'NOBODY', 'Never reported');
+        assert.ok(never, 'a code nobody ever reported on');
         const before = (await t.get('/m/' + shop.slug)).text;
-        assert.match(before, /Last report 22 Sep around 12:00 UTC/, 'the last report, to the hour');
+        assert.match(before, /Last report \d{4}-\d{2}-\d{2} around 12:00 UTC/, 'the last report date and hour');
         assert.doesNotMatch(before, /No reports in the last 30 days/);
 
         // 31 days later the report is outside the window: the code says so and sorts last.
@@ -96,7 +100,30 @@ function bestCardCode(html) {
         await report(t, fresh, 'worked', 2);
         const after = (await t.get('/m/' + shop.slug)).text;
         assert.match(after, /No reports in the last 30 days/, 'the stale code says it has no recent reports');
-        assert.ok(after.indexOf('>NEWC<') < after.indexOf('>OLDC<'), 'the stale code sorts last');
+        assert.ok(after.indexOf('>NEWC<') < after.indexOf('>NOBODY<'), 'a code with recent reports comes first');
+        assert.ok(after.indexOf('>NOBODY<') < after.indexOf('>OLDC<'), 'the stale code sorts last');
+    });
+
+    await check('a code nobody reported on says "No reports yet", in the best card too', async () => {
+        const shop = await t.merchant({ name: 'Quiet Shop', host: 'quiet-shop.com' });
+        await submitCode(t, alice, shop.slug, 'QUIET10', '10% off');
+        const page = await t.get('/m/' + shop.slug);
+        assert.strictEqual(page.status, 200);
+        assert.match(page.text, /id="cpn-best-card"/);
+        assert.match(page.text, /No reports yet/);
+        assert.doesNotMatch(page.text, /Validity unknown/, 'no report is not an unknown verdict');
+        assert.doesNotMatch(page.text, /No reports in the last 30 days/, 'never reported is not "none lately"');
+    });
+
+    await check('the best code says when it last worked ("3 days ago")', async () => {
+        const shop = await t.merchant({ name: 'Worked Shop', host: 'worked-shop.com' });
+        const code = await submitCode(t, alice, shop.slug, 'WORKED20', '20% off');
+        await report(t, code, 'worked', 1);
+        t.clock.advance(3 * 24 * 60 * 60 * 1000);
+        const page = await t.get('/m/' + shop.slug);
+        assert.match(page.text, /last worked 3 days ago/);
+        assert.match(page.text, /Validity unknown \(1 report\)/, 'one report is still not a rate');
+        assert.match(page.text, /Last report \d{4}-\d{2}-\d{2} around 12:00 UTC/, 'the exact last report stays too');
     });
 
     await check('a shop with no codes says so, and never reads "Codes 0"', async () => {
@@ -158,8 +185,13 @@ function bestCardCode(html) {
         }
         const first = await t.get('/m/' + shop.slug + '?tab=deals');
         assert.strictEqual(first.status, 200);
+        assert.match(first.text, /id="cpn-best-card"/, 'a shop with only product deals leads with its best one');
+        assert.match(first.text, /IntersectionObserver/, 'and the slim bar follows it there too');
         assert.strictEqual((first.text.match(/One product/g) || []).length, 20, 'the first page shows twenty');
         assert.match(first.text, /href="\/m\/[^"]+\?tab=deals&amp;deals=25">Show 5 more/, 'and a link to the rest');
+        const landing = await t.get('/m/' + shop.slug);
+        assert.match(landing.text, /aria-current="page"><span>Product deals/, 'the store opens on Product deals');
+        assert.match(landing.text, /id="cpn-best-card"/, 'and the best code is still first');
         const all = await t.get('/m/' + shop.slug + '?tab=deals&deals=25');
         assert.strictEqual((all.text.match(/One product/g) || []).length, 25, 'the link shows them all');
         assert.doesNotMatch(all.text, /Show \d+ more/, 'with nothing left to show, no link');

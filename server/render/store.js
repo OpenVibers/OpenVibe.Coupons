@@ -6,7 +6,8 @@
  *
  * The rules this page keeps (the research outcomes of 2026-10-30):
  *   - a code's status comes only from people's reports: "87% worked (23 reports)", and under five reports the
- *     page says only "Validity unknown (2 reports)";
+ *     page says only "Validity unknown (2 reports)"; a code nobody has reported on yet says "No reports yet", and
+ *     the best code also says when it last worked ("last worked 3 days ago");
  *   - a code whose last report is older than the window says "No reports in the last 30 days" and sorts last;
  *   - the page never says "verified" and never shows a share of people that no report produced;
  *   - a shop with no codes says so; a tab never reads "Codes 0".
@@ -49,24 +50,36 @@ function workedShare(v) {
     return t.total >= MIN_REPORTS ? t.worked / t.total : null;
 }
 
-/** The status line: "87% worked (23 reports)", or, under five reports, only that the validity is unknown. */
+/** The status line: "87% worked (23 reports)", under five reports "Validity unknown (2 reports)", none yet "No reports yet". */
 function statusText(v) {
     const t = tally(v);
     if (t.total >= MIN_REPORTS) return `${Math.round((t.worked / t.total) * 100)}% worked (${t.total} report${t.total === 1 ? '' : 's'})`;
     if (t.total > 0) return `Validity unknown (${t.total} report${t.total === 1 ? '' : 's'})`;
-    return 'Validity unknown';
+    // No recent report: say "No reports yet" only when there never was one. A code reported on long ago keeps
+    // the plain "Validity unknown", and the line below says its reports are older than the window.
+    return v.reports && v.reports.last_report_at ? 'Validity unknown' : 'No reports yet';
 }
 
-/** When the last report came, in this site's own words: "Last report 30 Oct around 14:00 UTC". */
+/** When the last report came, in this site's own words: "Last report 2026-10-30 around 14:00 UTC". */
 function lastReport(v, now, windowDays) {
     const at = v.reports && v.reports.last_report_at;
     const t = at ? Date.parse(at) : NaN;
-    if (!Number.isFinite(t)) return { text: `No reports in the last ${windowDays} days`, iso: null, recent: false, ever: false };
+    if (!Number.isFinite(t)) return { text: 'No reports yet', iso: null, recent: false, ever: false };
     if (now - t > windowDays * DAY) return { text: `No reports in the last ${windowDays} days`, iso: at, recent: false, ever: true };
     const d = new Date(t);
-    const year = d.getUTCFullYear() === new Date(now).getUTCFullYear() ? '' : ` ${d.getUTCFullYear()}`;
     const hh = String(d.getUTCHours()).padStart(2, '0');
-    return { text: `Last report ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}${year} around ${hh}:00 UTC`, iso: at, recent: true, ever: true };
+    return { text: `Last report ${d.toISOString().slice(0, 10)} around ${hh}:00 UTC`, iso: at, recent: true, ever: true };
+}
+
+/** The last time someone said this code worked, in relative words: "last worked 3 days ago". */
+function lastWorked(v, now) {
+    const at = v.reports && v.reports.last_worked_at;
+    const t = at ? Date.parse(at) : NaN;
+    if (!Number.isFinite(t)) return '';
+    const days = Math.max(0, Math.floor((now - t) / DAY));
+    if (days === 0) return 'last worked today';
+    if (days === 1) return 'last worked yesterday';
+    return `last worked ${days} days ago`;
 }
 
 /** The expiry as it was stated: a day (end of that day in UTC) or a moment. */
@@ -104,18 +117,36 @@ function recency(v) {
 }
 
 /**
+ * How much a code can be ordered by: 0 = five or more recent reports, 1 = one to four recent reports, 2 = no
+ * reports yet, 3 = reports, but none in the last 30 days. A code with no recent report can never come first,
+ * and the one whose evidence is stale says so and sits last.
+ */
+function evidenceRank(v) {
+    const t = tally(v);
+    if (t.total >= MIN_REPORTS) return 0;
+    if (t.total > 0) return 1;
+    return v.reports && v.reports.last_report_at ? 3 : 2;
+}
+
+/**
  * The order the codes are read in: the one with the most evidence of working first. A code needs five
  * reports before its rate counts; then the higher share of people who said it worked wins, and then the more
- * recent report. A code nobody reported recently can never come first.
+ * recent report. Under five reports, more reports come first; codes with no recent report follow in the order
+ * they arrived, except that a code whose last report is older than the window stays last.
  */
 function byEvidence(a, b) {
+    const ra = evidenceRank(a), rb = evidenceRank(b);
+    if (ra !== rb) return ra - rb;
     const ta = tally(a), tb = tally(b);
-    const sa = workedShare(a), sb = workedShare(b);
-    if (sa != null && sb != null) return sa === sb ? recency(b) - recency(a) : sb - sa;
-    if (sa != null) return -1;
-    if (sb != null) return 1;
-    if (ta.total !== tb.total) return tb.total - ta.total;
-    return recency(b) - recency(a);
+    if (ra === 0) {
+        const sa = workedShare(a), sb = workedShare(b);
+        return sa === sb ? recency(b) - recency(a) : sb - sa;
+    }
+    if (ra === 1) {
+        if (ta.total !== tb.total) return tb.total - ta.total;
+        return recency(b) - recency(a);
+    }
+    return 0;
 }
 
 function hostOf(u) { try { return new URL(u).hostname; } catch { return u; } }
@@ -136,6 +167,7 @@ function reportForms(v, { csrf, back }) {
 /** The best code, first on the page: the code in a dashed box, its rate, when it was last reported and its expiry. */
 function bestCard(v, { now, windowDays, csrf, back, shop = '' }) {
     const lr = lastReport(v, now, windowDays);
+    const lw = lastWorked(v, now);
     const ex = expiryOf(v);
     const limits = restrictionText(v.restrictions);
     const codeId = v.id;
@@ -145,8 +177,8 @@ function bestCard(v, { now, windowDays, csrf, back, shop = '' }) {
 <h2 class="cpn-best-label" id="cpn-best-h">Best code right now</h2>
 <p class="cpn-best-head"><strong class="cpn-off">${headline(v)}</strong> <a class="cpn-best-title" href="/c/${v.id}">${v.title}</a></p>
 <div class="cpn-codebox"><code class="cpn-codetext" id="${codeId}">${v.code}</code>${k(copyButton(codeId))}</div>
-<p class="cpn-status-line">${statusText(v)}</p>
-<p class="cpn-meta">${lr.iso ? h`<time datetime="${lr.iso}">${lr.text}</time>` : lr.text}</p>
+<p class="cpn-status-line">${statusText(v)}${lw ? h` · ${lw}` : ''}</p>
+${lr.ever ? h`<p class="cpn-meta">${lr.iso ? h`<time datetime="${lr.iso}">${lr.text}</time>` : lr.text}</p>` : ''}
 <p class="cpn-meta">${ex ? h`${ex.short}${ex.said ? h` (${ex.said})` : ''}` : h`<span class="unknown">Expiry unknown</span>`}${remind ? k(remind) : ''}</p>
 ${limits.length ? h`<p class="cpn-meta cpn-limits">${limits.join(' · ')}</p>` : h`<p class="cpn-meta cpn-limits">No restrictions stated. That does not mean there are none.</p>`}
 <div class="cpn-votes">${reportForms(v, { csrf, back })}</div>
@@ -157,7 +189,8 @@ ${limits.length ? h`<p class="cpn-meta cpn-limits">${limits.join(' · ')}</p>` :
 function codeRow(v, { now, windowDays, csrf, back, shop = '' }) {
     const lr = lastReport(v, now, windowDays);
     const ex = expiryOf(v);
-    const facts = [statusText(v), lr.text, ex ? (ex.said ? `${ex.short} (${ex.said})` : ex.short) : 'Expiry unknown'];
+    // No report yet: the status already says so, so it is not said twice.
+    const facts = [statusText(v), ...(lr.ever ? [lr.text] : []), ex ? (ex.said ? `${ex.short} (${ex.said})` : ex.short) : 'Expiry unknown'];
     const limits = restrictionText(v.restrictions);
     const codeId = v.id;
     // "Remind me" for the moment the code ends (plan L48 R3), with the row's other actions; only when the end is
@@ -194,7 +227,7 @@ function aboutTab({ m, domains, hints, codes, price, now, windowDays }) {
 <li>Origin: ${origin}${evidence.length ? h` — <a href="${evidence[0].url}" rel="nofollow ugc noopener">${hostOf(evidence[0].url)}</a>${evidence[0].retrieved_at ? ` (retrieved ${String(evidence[0].retrieved_at).slice(0, 10)})` : ''}` : ' (no link recorded)'}</li>
 ${limits.length ? h`<li>Restrictions: ${limits.join('; ')}</li>` : h`<li>Restrictions: no restrictions stated. That does not mean there are none.</li>`}
 <li>Expiry: ${ex ? h`${ex.full}${ex.said ? `, ${ex.said}` : ''}` : h`<span class="unknown">unknown</span> (nobody stated one)`}</li>
-<li>${lr.ever ? lr.text : 'No report yet'}</li>
+<li>${lr.ever ? lr.text : 'No reports yet'}</li>
 </ul>
 </div>`;
     });
@@ -253,7 +286,10 @@ function storePage({ m, domains, hints, codes, deals, ended, reportsThisWeek, pr
     if (tab === 'about') {
         body = h`${aboutTab({ m, domains, hints, codes: all, price, now, windowDays })}`;
     } else if (tab === 'deals') {
-        body = h`<p class="ovk-note cpn-lede">Codes that take money off one product, as the source posted them.</p>
+        // A shop with only product deals (Amazon, for one) opens on this tab, so it leads with its best code here:
+        // the same card the Codes tab shows first, with the reports it has.
+        body = h`${!codes.length && best ? bestCard(best, { now, windowDays, csrf, back, shop: m.name }) : ''}
+<p class="ovk-note cpn-lede">Codes that take money off one product, as the source posted them.</p>
 ${deals.length ? h`${deals.slice(0, shown).map((v) => couponCard(v, { viewer, csrf, back, link: true, shopUrl: m.homepage_url, now, shop: m.name }))}
 ${shown < deals.length ? h`<p class="cpn-more"><a class="ovk-btn ovk-btn--quiet" href="${base}?tab=deals&amp;deals=${String(Math.min(deals.length, shown + DEALS_PAGE))}">Show ${String(Math.min(DEALS_PAGE, deals.length - shown))} more <span class="cpn-muted">(${String(shown)} of ${String(deals.length)})</span></a></p>` : ''}` : h`<p class="empty">No product deals for ${m.name} right now.</p>`}
 ${merchantTrend(success, m.name)}`;
@@ -301,4 +337,4 @@ function watchLink({ m, csrf, signedIn, watching, base }) {
     return h`<p class="ovk-note"><a class="ovk-btn ovk-btn--primary" href="/auth/login?next=${encodeURIComponent(base)}">Tell me when one appears</a></p>`;
 }
 
-module.exports = { storePage, STICKY_SCRIPT, statusText, lastReport, expiryOf, byEvidence, workedShare, tally, MIN_REPORTS };
+module.exports = { storePage, STICKY_SCRIPT, statusText, lastReport, lastWorked, expiryOf, byEvidence, workedShare, tally, MIN_REPORTS };
