@@ -45,8 +45,20 @@ const regionName = (() => {
 
 function hidden(csrf) { return h`<input type="hidden" name="csrf" value="${csrf}">`; }
 
-function statusBadge(status) {
-    return h`<span class="status status-${status}">${STATUS_LABEL[status] || status}</span>`;
+/**
+ * The status in this site's own words. A code nobody has ever reported on says "No reports yet" instead of
+ * borrowing the verdict word "unknown"; a code with reports that are too few or disagree still says "Validity unknown".
+ */
+function statusLabel(v) {
+    if (v && typeof v === 'object' && v.status === 'unknown' && v.reports && !v.reports.last_report_at
+        && !(Number(v.reports.worked) || 0) && !(Number(v.reports.failed) || 0)) return 'No reports yet';
+    const status = v && typeof v === 'object' ? v.status : v;
+    return STATUS_LABEL[status] || status;
+}
+
+function statusBadge(v) {
+    const status = v && typeof v === 'object' ? v.status : v;
+    return h`<span class="status status-${status}">${statusLabel(v)}</span>`;
 }
 
 function expiryText(expiry) {
@@ -58,7 +70,12 @@ function expiryText(expiry) {
 }
 
 function confidenceText(v) {
-    if (v.confidence == null) return h`<span class="unknown">No reports in the last ${v.reports.window_days} days</span>`;
+    if (v.confidence == null) {
+        // Never reported is not the same as "nothing lately": say which one it is.
+        return v.reports.last_report_at
+            ? h`<span class="unknown">No reports in the last ${v.reports.window_days} days</span>`
+            : h`<span class="unknown">No reports yet</span>`;
+    }
     return h`Confidence ${Math.round(v.confidence * 100)}% from ${v.reports.worked} “worked” and ${v.reports.failed} “didn't work” report${v.reports.worked + v.reports.failed === 1 ? '' : 's'} in the last ${v.reports.window_days} days (<a href="/about#confidence">how this is computed</a>)`;
 }
 
@@ -159,10 +176,12 @@ function restrictionChips(list) {
 /** One status line: the status, what the reports say (or that there are none), when the last one came, the expiry. */
 function statusLine(v) {
     const parts = [];
-    parts.push(v.confidence == null ? (v.reports.last_report_at ? `No reports in the last ${v.reports.window_days} days` : 'No reports yet') : `Confidence ${Math.round(v.confidence * 100)}%`);
+    // No report ever: the badge already says "No reports yet", so it is not repeated here.
+    if (v.confidence != null) parts.push(`Confidence ${Math.round(v.confidence * 100)}%`);
+    else if (v.reports.last_report_at) parts.push(`No reports in the last ${v.reports.window_days} days`);
     if (v.reports.last_report_at) parts.push(`last report ${kit.when(v.reports.last_report_at).text}`);
     parts.push(v.expiry.known ? `Expires ${kit.when(v.expiry.expires_at).text}` : 'Expiry unknown');
-    return h`<p class="cpn-status">${statusBadge(v.status)} <span>${parts.join(' · ')}</span></p>`;
+    return h`<p class="cpn-status">${statusBadge(v)} <span>${parts.join(' · ')}</span></p>`;
 }
 
 /** Signed in: Worked / Didn't work in one tap (the reason is in Details); signed out, Details says how to report. */
@@ -192,7 +211,7 @@ ${quickReport(v, opts)}
 <details class="cpn-more"${opts.page ? ' open' : ''}><summary>Details</summary>
 ${v.description ? h`<p>${v.description}</p>` : ''}
 <p class="meta">${confidenceText(v)}</p>
-<p class="meta">${v.reports.last_report_at ? h`Last report ${v.reports.last_report_at.slice(0, 10)} around ${v.reports.last_report_at.slice(11, 13)}:00 UTC` : 'No reports yet'}</p>
+${v.reports.last_report_at ? h`<p class="meta">Last report ${v.reports.last_report_at.slice(0, 10)} around ${v.reports.last_report_at.slice(11, 13)}:00 UTC</p>` : ''}
 <p class="meta">${expiryText(v.expiry)}</p>
 ${restrictionsList(v.restrictions)}
 ${v.hints.length ? h`<ul class="hints">${v.hints.map((x) => h`<li>How to apply: ${x.text}</li>`)}</ul>` : ''}
@@ -223,7 +242,7 @@ function home({ merchants, recent, q, results, total, showcase = false }) {
 <form method="get" action="/" class="search" role="search"><label class="sr-only" for="q">Shop name or domain</label><input id="q" name="q" type="search" value="${q || ''}" maxlength="60" placeholder="Shop name or domain, like amazon.com"> <button type="submit" class="primary">Search</button></form></section>
 ${q ? h`<h2>Shops matching “${q}”</h2>${results.length ? h`<ul class="chips">${results.map((m) => h`<li><a class="chip" href="/m/${m.slug}">${m.name}</a></li>`)}</ul>` : h`<p class="empty">No shop matches. <a href="/submit">Submit a code</a> for a new one.</p>`}` : ''}
 <section class="sc-sec" aria-labelledby="recent-h"><h2 id="recent-h">Recently added codes</h2>
-${recent.length ? h`<ul class="offers">${recent.map((r) => h`<li><a class="offer-title" href="/c/${r.coupon.id}">${r.coupon.title}</a><span class="offer-meta"><a href="/m/${r.merchant.slug}">${r.merchant.name}</a> ${statusBadge(r.coupon.status)}</span></li>`)}</ul>` : h`<p class="empty">No codes yet.</p>`}</section>
+${recent.length ? h`<ul class="offers">${recent.map((r) => h`<li><a class="offer-title" href="/c/${r.coupon.id}">${r.coupon.title}</a><span class="offer-meta"><a href="/m/${r.merchant.slug}">${r.merchant.name}</a> ${statusBadge(r.coupon)}</span></li>`)}</ul>` : h`<p class="empty">No codes yet.</p>`}</section>
 ${shopsSection(merchants, total)}
 <p class="meta"><a href="/about">How statuses and confidence work</a> · <a href="/feed.xml">RSS</a> · <a href="/atom.xml">Atom</a> · <a href="/feed.json">JSON Feed</a></p>`;
 }
@@ -476,5 +495,5 @@ function message({ heading, text, action }) {
 }
 
 module.exports = {
-    shopTab, isProductDeal, headline, moneyOf, symbolOf, currencyOf, home, shopsSection, merchantTrend, couponPage, couponCard, about, submitForm, submitted, connect, companion, COMPANION_RELEASE, watching, staff, message, STATUS_LABEL, SITE_SUMMARY,
+    shopTab, isProductDeal, headline, moneyOf, symbolOf, currencyOf, home, shopsSection, merchantTrend, couponPage, couponCard, about, submitForm, submitted, connect, companion, COMPANION_RELEASE, watching, staff, message, STATUS_LABEL, statusLabel, SITE_SUMMARY,
     regionName, BASIS_LABEL };

@@ -187,6 +187,7 @@ function bestCardCode(html) {
         assert.strictEqual(first.status, 200);
         assert.match(first.text, /id="cpn-best-card"/, 'a shop with only product deals leads with its best one');
         assert.match(first.text, /IntersectionObserver/, 'and the slim bar follows it there too');
+        assert.doesNotMatch(first.text, /Validity unknown/, 'an unreported deal says "No reports yet" too');
         assert.strictEqual((first.text.match(/One product/g) || []).length, 20, 'the first page shows twenty');
         assert.match(first.text, /href="\/m\/[^"]+\?tab=deals&amp;deals=25">Show 5 more/, 'and a link to the rest');
         const landing = await t.get('/m/' + shop.slug);
