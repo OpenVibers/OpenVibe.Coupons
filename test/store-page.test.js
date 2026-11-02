@@ -166,7 +166,7 @@ function bestCardCode(html) {
         assert.match(page.text, /id="cpn-sticky"/, 'the slim bar');
         assert.match(page.text, /hidden/, 'the bar is hidden until the best code leaves the screen');
         assert.match(page.text, /IntersectionObserver/, 'the few lines that show it');
-        assert.match(page.text, /Expires 31 Dec 2026 \(end of day, UTC\)/, 'the expiry with its precision');
+        assert.match(page.text, /Expires 31 Dec 2026, end of day UTC/, 'the expiry with its precision');
         const about = await t.get('/m/' + shop.slug + '?tab=about');
         assert.strictEqual(about.status, 200);
         assert.match(about.text, /Quick facts/);
