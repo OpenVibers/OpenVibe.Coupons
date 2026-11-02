@@ -10,7 +10,7 @@
  */
 const ssr = require('openvibe-publishing/ssr');
 const showcase = require('openvibe-shared/showcase');
-const { STATUS_LABEL, shopsSection } = require('./pages');
+const { statusLabel, shopsSection } = require('./pages');
 const { remindLink } = require('./remind');
 // The short home (the owner's rule, 2026-10-30): the three code lists become one pick block, a row of chips picks
 // one of them, and the parts a reader rarely needs become folds.
@@ -36,7 +36,7 @@ function codeCard(v, m, now) {
     // is known and still ahead.
     const remind = remindLink(v, { now, shop: m.name });
     return h`<li class="cp-card">
-<p class="cp-top"><a class="cp-shop" href="/m/${m.slug}">${m.name}</a> <span class="status status-${v.status}">${STATUS_LABEL[v.status] || v.status}</span></p>
+<p class="cp-top"><a class="cp-shop" href="/m/${m.slug}">${m.name}</a> <span class="status status-${v.status}">${statusLabel(v)}</span></p>
 <p class="cp-code"><span class="sr-only">Code: </span><code class="code">${v.code}</code></p>
 <h3><a href="/c/${v.id}">${v.title}</a></h3>
 <p class="meta">${v.expiry.known ? h`Ends <time datetime="${v.expiry.expires_at}" title="${v.expiry.expires_at.slice(0, 16).replace('T', ' ')} UTC">${until(v.expiry.expires_at, now)}</time>` : h`<span class="unknown">No end date stated</span>`}${rules.length ? h` · ${rules.join(' · ')}` : ''}</p>
@@ -66,12 +66,12 @@ function stats(items) {
 /** Questions people ask, answered from how the site works (also the page's FAQPage JSON-LD). */
 function faqItems({ windowDays }) {
     return [
-        { q: 'Do these codes work?', a: `Nobody can promise that, so OpenVibe.Coupons says what is known. A code is marked "Reported working" only when people who tried it in the last ${windowDays} days said it worked, and "Reported not working" when they said it did not. Every other code says "Validity unknown".` },
+        { q: 'Do these codes work?', a: `Nobody can promise that, so OpenVibe.Coupons says what is known. A code is marked "Reported working" only when people who tried it in the last ${windowDays} days said it worked, and "Reported not working" when they said it did not. A code nobody has reported on yet says "No reports yet"; one with too few or disagreeing reports says "Validity unknown".` },
         { q: 'Where do the codes come from?', a: 'From people who submit a code with a link to where it was published, and from DealNews, whose deal feed names a code, the shop and often an end date. OpenVibe.Sources reads that feed every hour. Each code page links to its evidence.' },
         { q: 'How do I use a code?', a: 'Copy the code, open the shop, and paste it into the coupon or promo box at checkout. The code page lists any minimum spend or other rule that was stated, and how to apply it when someone wrote that down.' },
         { q: 'What does "No end date stated" mean?', a: 'Nobody stated when the code ends, so no date is shown. OpenVibe.Coupons never guesses one. A code with a stated end leaves the active list the moment it passes.' },
         { q: 'Does the browser extension change referral links?', a: 'No. The OpenVibe Companion never rewrites links, never adds referral tags and never earns from your shopping, so the creator or site that sent you keeps its credit. Codes from DealNews stay on this site, because DealNews\' terms keep them out of browser extensions.' },
-        { q: 'Can I add a code?', a: 'Yes. Sign in with your free OpenVibe account and submit it with a link to where it was published. It starts as "Validity unknown" until people report on it.' },
+        { q: 'Can I add a code?', a: 'Yes. Sign in with your free OpenVibe account and submit it with a link to where it was published. It starts as "No reports yet" until people report on it.' },
     ];
 }
 
