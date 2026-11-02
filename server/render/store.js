@@ -93,7 +93,7 @@ function expiryOf(v) {
     const day = `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
     return {
         instant,
-        short: instant ? `Expires ${day} ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')} UTC` : `Expires ${day} (end of day, UTC)`,
+        short: instant ? `Expires ${day} ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')} UTC` : `Expires ${day}, end of day UTC`,
         full: instant ? `${iso.slice(0, 16).replace('T', ' ')} UTC` : `${iso.slice(0, 10)} (end of that day in UTC; the merchant's time zone is not stated)`,
         basis: e.basis || null,
         said: BASIS_LABEL[e.basis] || null,
@@ -179,9 +179,9 @@ function bestCard(v, { now, windowDays, csrf, back, shop = '' }) {
 <div class="cpn-codebox"><code class="cpn-codetext" id="${codeId}">${v.code}</code>${k(copyButton(codeId))}</div>
 <p class="cpn-status-line">${statusText(v)}${lw ? h` · ${lw}` : ''}</p>
 ${lr.ever ? h`<p class="cpn-meta">${lr.iso ? h`<time datetime="${lr.iso}">${lr.text}</time>` : lr.text}</p>` : ''}
-<p class="cpn-meta">${ex ? h`${ex.short}${ex.said ? h` (${ex.said})` : ''}` : h`<span class="unknown">Expiry unknown</span>`}${remind ? k(remind) : ''}</p>
+<p class="cpn-meta">${ex ? h`${ex.short}${ex.said ? h` · ${ex.said}` : ''}` : h`<span class="unknown">Expiry unknown</span>`}</p>
 ${limits.length ? h`<p class="cpn-meta cpn-limits">${limits.join(' · ')}</p>` : h`<p class="cpn-meta cpn-limits">No restrictions stated. That does not mean there are none.</p>`}
-<div class="cpn-votes">${reportForms(v, { csrf, back })}</div>
+<div class="cpn-votes">${reportForms(v, { csrf, back })}${remind ? k(remind) : ''}</div>
 </section>`;
 }
 
@@ -190,7 +190,7 @@ function codeRow(v, { now, windowDays, csrf, back, shop = '' }) {
     const lr = lastReport(v, now, windowDays);
     const ex = expiryOf(v);
     // No report yet: the status already says so, so it is not said twice.
-    const facts = [statusText(v), ...(lr.ever ? [lr.text] : []), ex ? (ex.said ? `${ex.short} (${ex.said})` : ex.short) : 'Expiry unknown'];
+    const facts = [statusText(v), ...(lr.ever ? [lr.text] : []), ex ? (ex.said ? `${ex.short} · ${ex.said}` : ex.short) : 'Expiry unknown'];
     const limits = restrictionText(v.restrictions);
     const codeId = v.id;
     // "Remind me" for the moment the code ends (plan L48 R3), with the row's other actions; only when the end is

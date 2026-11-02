@@ -28,7 +28,7 @@ const SITE_SUMMARY = 'Coupon codes for online shops with merchant/domain matchin
 const BASIS_LABEL = {
     evidence: 'as stated on the evidence page',
     submitter: 'according to the person who submitted it',
-    source: 'as stated by the imported source',
+    source: 'as the source states',
     staff: 'set by staff',
 };
 const REASON_LABEL = {
