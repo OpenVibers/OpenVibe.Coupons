@@ -232,6 +232,7 @@ async function createApp(opts = {}) {
         render: require('./agent-pages').createAgentPages({ router: publicRoutes.router }).renderPublicPage,
     });
 
+    app.use(require('./link-header').linkHeader());   // SEO-24: the head's twin and llms.txt links, as a Link: header
     app.use(pages, publicRoutes.router);
     app.use((req, res) => publicRoutes.notFound(req, res));
 
