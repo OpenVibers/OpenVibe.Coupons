@@ -255,16 +255,5 @@ main:has(.cpn-shop-title) .ovk-sub { white-space: normal; }
   .cp-fold-hint { display: inline; margin-left: 8px; font-size: .78rem; font-weight: 600; color: var(--text-secondary, #96a7c2); }
 }
 
-/* A link that points into a pick block opens it: the pane carries the id the link names. */
-@supports selector(:has(*)) { @media (max-width: 640px) {
-  .pick .pick-pane:target { display: block; }
-} }
-
 /* The fold's summary carries the heading, so the section's own heading gives way to it. */
 .cp-fold-block .cp-sec > .cp-head > h2 { display: none; }
-
-/* On a wide screen the pick block is invisible: its blocks sit where they were, in the order they were. */
-@media (min-width: 641px) {
-  .pick, .pick-body, .pick-pane { display: contents; }
-  .pick-bar { display: none; }
-}

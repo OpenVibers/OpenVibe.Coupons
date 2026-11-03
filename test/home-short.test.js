@@ -1,8 +1,8 @@
 'use strict';
 /**
- * The home on a phone (the owner's short-pages rule, 2026-10-30): the three code lists are one pick block, a row of
- * chips picks one of them, and the parts a reader rarely needs are folds. Radio inputs and :has(), no script for the
- * chips; every list stays in the page for crawlers; a wider screen shows them all and no chips.
+ * The home on a phone (the owner's short-pages rule, 2026-10-30): the three code lists are one pick block, every list
+ * is shown, and the chips are a row of links that jump to a list (the owner, 2026-10-31: never hide content to shorten).
+ * The parts a reader rarely needs are folds. A wider screen shows every list and no chips.
  */
 const assert = require('assert');
 const { boot, check, done } = require('./helpers/boot');
