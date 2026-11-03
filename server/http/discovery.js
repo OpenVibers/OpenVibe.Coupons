@@ -59,18 +59,23 @@ function createDiscoveryRoutes({ config, store, merchants, coupons, publication 
             name: 'OpenVibe.Coupons',
             summary: pages.SITE_SUMMARY,
             details: 'A code\'s status is exactly one of unknown, reported_working, reported_failed, expired or disabled. Only recent reports by people can make a code reported_working or reported_failed; a submission, a source or a model cannot. An expiry that nobody stated is "unknown" (null in JSON), and restrictions that were not stated are absent, not "none". Every shop page has a JSON twin at /m/<slug>.json and every code at /c/<id>.json with the same content. Expired and taken-down codes are not in lists, feeds or sitemaps.',
+            markdown: true,
+            base: config.baseUrl,
             sections: [
                 { title: 'Start here', links: [
-                    { title: 'All shops', url: abs('/'), note: 'with recently added codes' },
+                    { title: 'OpenVibe.Coupons', url: abs('/'), note: 'all shops with recently added codes' },
                     { title: 'How codes are labelled', url: abs('/about'), note: 'statuses, the confidence formula, expiry, privacy' },
                     { title: 'The OpenVibe Companion', url: abs('/companion'), note: 'the open-source browser extension: codes for the shop you are on, tried when you ask; never rewrites referral links' },
-                    { title: 'Sitemap', url: abs('/sitemap.xml') },
                 ] },
-                { title: 'Feeds', links: [{ title: 'RSS', url: abs('/feed.xml') }, { title: 'Atom', url: abs('/atom.xml') }, { title: 'JSON Feed', url: abs('/feed.json') }] },
-                { title: 'Data', links: [
-                    { title: 'Shop JSON', url: abs('/'), note: 'append .json to a shop URL (/m/<slug>.json)' },
-                    { title: 'Merchant lookup API', url: abs('/api/v1/merchants/resolve?host=amazon.com', { query: ['host'] }), note: 'GET /api/v1/merchants/resolve?host=<shop host> (a worked example above) and GET /api/v1/merchants/<id>/coupons; anonymous, rate-limited' },
-                ] },
+            ],
+            optional: [
+                { title: 'Sitemap', url: abs('/sitemap.xml') },
+                { title: 'RSS', url: abs('/feed.xml') },
+                { title: 'Atom', url: abs('/atom.xml') },
+                { title: 'JSON Feed', url: abs('/feed.json') },
+                { title: 'Shop JSON', url: abs('/'), note: 'append .json to a shop URL (/m/<slug>.json)' },
+                { title: 'Merchant lookup API', url: abs('/api/v1/merchants/resolve?host=amazon.com', { query: ['host'] }), note: 'GET /api/v1/merchants/resolve?host=<shop host> (a worked example above) and GET /api/v1/merchants/<id>/coupons; anonymous, rate-limited' },
+                { title: 'Full text for language models', url: abs('/llms-full.txt') },
             ],
         }));
     });

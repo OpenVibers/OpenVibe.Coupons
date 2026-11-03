@@ -105,6 +105,8 @@ const { boot, check, done } = require('./helpers/boot');
         const llms = await t.get('/llms.txt');
         assert.match(llms.text, /reported_working/);
         assert.match(llms.text, /\/m\/<slug>\.json/);
+        assert.match(llms.text, /\n## Optional\n/);
+        assert.match(llms.text, /\(https:\/\/openvibe\.coupons\/index\.md\)/);
         // Every URL the file lists has to answer when it is fetched as a link: a language model that
         // follows one and gets a 400 has learned nothing. The merchant lookup is a GET with one
         // required parameter, so its link carries the parameter; bare, it answers 400 by design.
