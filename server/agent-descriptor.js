@@ -10,6 +10,7 @@ module.exports = {
     site: 'openvibe.coupons',
     api: '/api/v1',
     docs: '/about',
+    openapi: '/openapi.json',
     policy: {
         auth: ['none', 'Network OIDC'],
     },
