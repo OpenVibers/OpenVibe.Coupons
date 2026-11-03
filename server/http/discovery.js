@@ -67,14 +67,17 @@ function createDiscoveryRoutes({ config, store, merchants, coupons, publication 
                     { title: 'How codes are labelled', url: abs('/about'), note: 'statuses, the confidence formula, expiry, privacy' },
                     { title: 'The OpenVibe Companion', url: abs('/companion'), note: 'the open-source browser extension: codes for the shop you are on, tried when you ask; never rewrites referral links' },
                 ] },
+                // The API is a primary entry for an agent; a shop as JSON is named in its note (a link to "/" would read
+                // as the home's Markdown twin).
+                { title: 'Data', links: [
+                    { title: 'Merchant lookup API', url: abs('/api/v1/merchants/resolve?host=amazon.com', { query: ['host'] }), note: 'any shop as JSON: append .json to its URL (/m/<slug>.json). GET /api/v1/merchants/resolve?host=<shop host> (a worked example above) and GET /api/v1/merchants/<id>/coupons; anonymous, rate-limited' },
+                ] },
             ],
             optional: [
                 { title: 'Sitemap', url: abs('/sitemap.xml') },
                 { title: 'RSS', url: abs('/feed.xml') },
                 { title: 'Atom', url: abs('/atom.xml') },
                 { title: 'JSON Feed', url: abs('/feed.json') },
-                { title: 'Shop JSON', url: abs('/'), note: 'append .json to a shop URL (/m/<slug>.json)' },
-                { title: 'Merchant lookup API', url: abs('/api/v1/merchants/resolve?host=amazon.com', { query: ['host'] }), note: 'GET /api/v1/merchants/resolve?host=<shop host> (a worked example above) and GET /api/v1/merchants/<id>/coupons; anonymous, rate-limited' },
                 { title: 'Full text for language models', url: abs('/llms-full.txt') },
             ],
         }));
