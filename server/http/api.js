@@ -103,12 +103,18 @@ function createApi(ctx) {
     const publicCache = (res) => res.set('Cache-Control', 'public, max-age=60');
 
     /**
-     * A merchant's active codes as views. A browser extension never gets a code its source keeps out of extensions
-     * (DealNews' feed terms, domain/source-policy.js); the count it sees is of the codes it gets.
+     * A merchant's active codes as views, and how many were withheld from this caller. A browser extension never gets
+     * a code its source keeps out of extensions (domain/source-policy.js); the count it sees is of the codes it gets,
+     * and `left_out` says how many its source's terms withheld.
      */
-    async function activeViews(m, req) {
+    async function activeViewSet(m, req) {
         const all = await Promise.all((await coupons.active(m.id)).map(async (c) => await coupons.view(c, { merchant: m })));
-        return req && fromExtension(req) ? all.filter((v) => !v.extension_excluded) : all;
+        const served = req && fromExtension(req) ? all.filter((v) => !v.extension_excluded) : all;
+        return { served, left_out: all.length - served.length };
+    }
+
+    async function activeViews(m, req) {
+        return (await activeViewSet(m, req)).served;
     }
 
     async function merchantView(m, req = null) {
@@ -162,7 +168,8 @@ function createApi(ctx) {
     router.get('/merchants/:id/coupons', lookupCors, lookupLimiter, guard(CAPABILITIES.COUPON_LOOKUP, { scope: SCOPES.LOOKUP }), reads, run(async (req, res) => {
         const m = await activeMerchant(req.params.id);
         publicCache(res);
-        return { merchant: await merchantView(m, req), coupons: await activeViews(m, req) };
+        const { served, left_out } = await activeViewSet(m, req);
+        return { merchant: await merchantView(m, req), coupons: served, left_out };
     }));
 
     router.get('/merchants/:id', lookupLimiter, guard(CAPABILITIES.COUPON_LOOKUP, { scope: SCOPES.LOOKUP }), reads, run(async (req, res) => {
