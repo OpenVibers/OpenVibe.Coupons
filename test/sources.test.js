@@ -119,14 +119,39 @@ const { boot, check, done } = require('./helpers/boot');
         assert.ok((await t.get('/')).text.includes('via <a href="https://www.dealnews.com/" rel="nofollow noopener">DealNews</a>'), 'and on the front page');
         const site = (await t.get(`/api/v1/merchants/${c.merchant_id}/coupons`)).json();
         assert.ok(site.coupons.some((x) => x.code === 'UXBMXG9V') && site.merchant.active_codes === 1, 'a server or page caller gets it');
+        assert.strictEqual(site.left_out, 0, 'nothing is left out for a page caller');
         for (const headers of [{ origin: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop' }, { origin: 'moz-extension://0d3c5e2a-1111-2222-3333-444455556666' }]) {
             const ext = await t.get(`/api/v1/merchants/${c.merchant_id}/coupons`, { headers });
             assert.strictEqual(ext.status, 200);
             assert.ok(!ext.json().coupons.some((x) => x.code === 'UXBMXG9V') && ext.json().merchant.active_codes === 0, `an extension never does (${headers.origin})`);
+            assert.strictEqual(ext.json().left_out, 1, 'and the answer says how many were withheld');
             assert.strictEqual((await t.get(`/api/v1/coupons/${c.id}`, { headers })).status, 404);
             assert.match(ext.headers.get('vary') || '', /Origin/);
             assert.strictEqual(ext.headers.get('cloudflare-cdn-cache-control'), 'no-store', 'the edge never keeps an answer that differs by caller');
         }
+    });
+
+    await check('the extension flag is per source and defaults to no: a merchant\'s own page is allowed, a source with no recorded permission is withheld', async () => {
+        const lantern = await t.merchant({ name: 'Lantern Supply', host: 'lanternsupply.com' });
+        t.sources.put(item('itm_01K0000000000000000000000R', { canonical_url: 'https://lanternsupply.com/promo', fields: { code: 'LANTERN10' } }));   // staff-coupon-codes: the shop's own page
+        t.sources.put(item('itm_01K0000000000000000000000S', { source_key: 'a-coupon-aggregator', canonical_url: 'https://aggregator.example/c/1', fields: { code: 'AGG20', merchant: 'Lantern Supply' } }));
+        const r = await t.ctx.importer.run();
+        assert.strictEqual(r.outcomes.imported, 2, JSON.stringify(r.outcomes));
+        await t.ctx.store.db.prepare("UPDATE coupons SET review_state = 'published' WHERE merchant_id = ?").run(lantern.id);
+        const views = {};
+        for (const code of ['LANTERN10', 'AGG20']) {
+            const c = await t.ctx.store.db.prepare('SELECT * FROM coupons WHERE code = ?').get(code);
+            views[code] = await t.ctx.coupons.view(c);
+        }
+        assert.strictEqual(views.LANTERN10.extension_excluded, false, 'a merchant\'s own promo page may reach the extension');
+        assert.strictEqual(views.AGG20.extension_excluded, true, 'a source with no recorded permission may not (default no)');
+        const site = (await t.get(`/api/v1/merchants/${lantern.id}/coupons`)).json();
+        assert.deepStrictEqual(site.coupons.map((c) => c.code).sort(), ['AGG20', 'LANTERN10'], 'a page caller gets both');
+        assert.strictEqual(site.left_out, 0);
+        const ext = (await t.get(`/api/v1/merchants/${lantern.id}/coupons`, { headers: { origin: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop' } })).json();
+        assert.deepStrictEqual(ext.coupons.map((c) => c.code), ['LANTERN10'], 'an extension gets only the allowed one');
+        assert.strictEqual(ext.left_out, 1, 'and is told how many were left out');
+        assert.strictEqual(ext.merchant.active_codes, 1, 'the count is of what it gets');
     });
 
     await check('a failed fetch changes nothing and is recorded', async () => {
