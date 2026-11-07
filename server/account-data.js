@@ -27,7 +27,24 @@ const TABLES = [
 ];
 
 function create({ db, log = console } = {}) {
-    return createAccountData({ db, service: 'coupons', tables: TABLES, log });
+    return createAccountData({
+        db, service: 'coupons', tables: TABLES, log,
+        /**
+         * The watched-shops list's share row names its owner (the subject, which is also the list's id) and its
+         * members. A table map cannot cover it: the rows go with the person, and so must everyone they had shared
+         * the list with, or a deleted account would linger in somebody else's member list. Children first.
+         */
+        extraErase: async (t, subjects) => {
+            for (const subject of subjects) {
+                const id = String(subject).replace(/^user:/, '');
+                await t.exec('DELETE FROM coupons_share_defaults WHERE subject = $1', [id]);
+                await t.exec("DELETE FROM share_members WHERE service='coupons' AND (subject->>'id' = $1 OR resource_id = $1)", [id]);
+                await t.exec("DELETE FROM share_transfers WHERE service='coupons' AND (from_subject->>'id' = $1 OR to_subject->>'id' = $1 OR resource_id = $1)", [id]);
+                await t.exec("DELETE FROM share_access_requests WHERE service='coupons' AND (subject->>'id' = $1 OR resource_id = $1)", [id]);
+                await t.exec("DELETE FROM shares WHERE service='coupons' AND (owner_subject->>'id' = $1 OR resource_id = $1)", [id]);
+            }
+        },
+    });
 }
 
 module.exports = { create, TABLES, TOPICS };

@@ -32,9 +32,26 @@ async function startNetwork() {
     const publicPem = publicKey.export({ type: 'spki', format: 'pem' });
     const privatePem = privateKey.export({ type: 'pkcs8', format: 'pem' });
     const grants = [];
+    const users = new Map();
     let issuer = null;
     const srv = await listen((req, raw, json) => {
         if (req.url === '/api/.well-known/jwks') return json(200, { public_key: publicPem, algorithm: 'RS256' });
+        if (req.url === '/internal/identity/resolve-batch' && req.method === 'POST') {
+            const b = JSON.parse(raw || '{}');
+            const results = {};
+            for (const subjectId of b.subject_ids || []) {
+                const u = users.get(subjectId);
+                results[subjectId] = u ? { subject: { type: 'user', id: u.subject }, username: u.username, display_name: u.display_name, avatar_url: null, banned: false } : null;
+            }
+            return json(200, { results });
+        }
+        if (req.url.startsWith('/internal/identity/resolve') && req.method === 'GET') {
+            const name = String(new URL(req.url, 'http://x').searchParams.get('username') || '').toLowerCase();
+            const u = [...users.values()].find((x) => String(x.username).toLowerCase() === name);
+            if (u) return json(200, { subject: { type: 'user', id: u.subject }, username: u.username, display_name: u.display_name });
+            return json(404, { code: 'identity.not_found' });
+        }
+        if (req.url === '/internal/notifications/push' && req.method === 'POST') return json(200, { ok: true });
         if (req.url === '/oauth/token' && req.method === 'POST') {
             let body = {};
             if (String(req.headers['content-type'] || '').includes('application/x-www-form-urlencoded')) body = Object.fromEntries(new URLSearchParams(raw));
@@ -58,7 +75,9 @@ async function startNetwork() {
         return serviceAuth.signServiceToken({ iss: issuer, sub, actor_type: actorType, aud, cap, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 300, jti: crypto.randomUUID(), ...app, ...extra }, privatePem);
     }
     function addUser(username, extra = {}) {
-        return { subject: ids.newId('user'), username, display_name: extra.display_name || username, role: extra.role || 'user' };
+        const u = { subject: ids.newId('user'), username, display_name: extra.display_name || username, role: extra.role || 'user' };
+        users.set(u.subject, u);
+        return u;
     }
     function userToken(u) {
         // Network session tokens are for the site: openvibe-sdk/sso verifies the audience (openvibe.coupons).

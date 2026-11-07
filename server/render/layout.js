@@ -100,7 +100,7 @@ function renderPage(o) {
         canonical: o.canonical,
         // The head names the page's own Markdown twin (openvibe-shared/agent-layer).
         // The rules that show the picked block of a pick block are written for the page, because there is one per block.
-        head: [agentHeadTags(o), ...(o.inlineStyles || []).map((css) => `<style>${css}</style>`)].filter(Boolean).join('\n'),
+        head: [o.head, agentHeadTags(o), ...(o.inlineStyles || []).map((css) => `<style>${css}</style>`)].filter(Boolean).join('\n'),
         decision: o.decision,
         // The AI-readable summary (publishing v1.3.0): given one, the shell emits the ai-summary meta
         // and a WebPage JSON-LD tag from these real fields; with none it emits neither.

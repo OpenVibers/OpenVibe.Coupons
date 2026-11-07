@@ -30,6 +30,7 @@ const { createCoupons } = require('./domain/coupons');
 const { createReports } = require('./domain/reports');
 const { createInstalls } = require('./domain/installs');
 const { createWatches } = require('./domain/watches');
+const { createSharing } = require('./sharing');
 const { createFacts } = require('./domain/facts');
 const { createModeration } = require('./domain/moderation');
 const { createSourcesImporter } = require('./clients/sources');
@@ -84,6 +85,8 @@ async function createApp(opts = {}) {
     const coupons = createCoupons({ store, merchants, publication, outbox });
     const reports = createReports({ store, config, coupons, merchants, publication });
     const installs = createInstalls({ store, config });
+    // The one sharing system (design 2026-11-06): a person's watched shops are theirs until the Share sheet says otherwise.
+    const sharing = opts.sharing || createSharing({ db: store.db, config, fetchImpl, log });
     const watches = createWatches({ store });
     // A neighbour's facts about a shop (the latest price we observed for one of its products).
     const facts = createFacts({ config, log });
@@ -110,7 +113,7 @@ async function createApp(opts = {}) {
     const viewers = createViewerResolver({ auth, jwks, config, installs });
     const worker = createWorker({ config, coupons, importer, outbox, log });
 
-    const ctx = { config, store, accountData, accountSend, outbox, publication, merchants, coupons, reports, installs, watches, moderation, importer, auth, jwks, viewers, worker, indexnow, facts };
+    const ctx = { config, store, accountData, accountSend, outbox, publication, merchants, coupons, reports, installs, watches, sharing, moderation, importer, auth, jwks, viewers, worker, indexnow, facts };
 
     const app = express();
     // GET /openapi.json (SEO-3): this service's public API as OpenAPI 3.1, generated from the contracts
@@ -208,6 +211,28 @@ async function createApp(opts = {}) {
             res.setHeader('Cache-Control', cache.assetHeaders(rel, { hashed: !!v && v === assetVersion(rel) }));
         },
     }));
+
+    // ── /api/v1/watchlist/:id/share — the one Share sheet's API (openvibe-sdk/share) ──
+    // GET/PUT .../share, .../share/requests, .../share/transfer[/accept|decline|cancel], GET /api/v1/share/people
+    // and /api/v1/shared-with-me. Access is still decided by canView on the list's page; the router answers only its
+    // own paths. The list's id is its owner's subject (usr_…).
+    {
+        const shareApi = express.Router();
+        shareApi.use(viewers.pages());
+        shareApi.use(sharing.shares.router({
+            service: 'coupons',
+            authenticate: (req) => sharing.shareViewer(req.viewer),
+            describe: sharing.describe,
+        }));
+        const SHARE_PATH = /^\/api\/v1\/(?:shared-with-me$|share\/people$|[^/]+\/[^/]+\/share(?:\/|$))/;
+        app.use((req, res, next) => (SHARE_PATH.test(req.path) ? shareApi(req, res, next) : next()));
+    }
+    // Expire members and transfers and send queued share events/notifications. Unref'd: it never holds a test open.
+    if (opts.startSharingWorker !== false) {
+        const timer = setInterval(() => { sharing.work().catch(() => { /* logged inside */ }); }, 15_000);
+        if (timer.unref) timer.unref();
+        app.locals.sharingTimer = timer;
+    }
 
     // ── API ─────────────────────────────────────────────────
     app.use('/api/v1', createApi(ctx));
