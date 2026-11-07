@@ -32,6 +32,9 @@ const B = 'usr_01JZ0000000000000000000BBB';
                 exempt: {
                     account_data_events: 'the ledger of requests itself: which export and deletion Coupons applied',
                     coupons_index_revisions: "owner is the search-index document's owner (type/id), not a person; the row holds a revision and hash",
+                    share_members: "the SDK's own sharing model: subject is an added person, erased by extraErase",
+                    share_access_requests: "the SDK's own sharing model: subject is the person who asked, erased by extraErase",
+                    coupons_share_defaults: "a person's own default for their watched-shops list, erased by extraErase",
                 },
             });
             assert.deepStrictEqual(missing, [], `a table with a person column is neither covered nor exempted: ${missing.join(', ')}`);

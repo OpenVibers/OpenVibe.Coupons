@@ -37,6 +37,11 @@ const confidence = require('../domain/confidence');
 const { SCOPES } = require('../auth/capabilities');
 
 const COUPON_ID_RE = /^cpn_[0-9A-HJKMNP-TV-Z]{26}$/;
+const SUBJECT_RE = /^usr_[0-9A-HJKMNP-TV-Z]{26}$/;
+
+// The one Share sheet (openvibe-shared ov-share.js): its stylesheet and script, and the gate that draws itself from
+// markup. A page with a Share button needs the shared navbar, which loads the sheet on the first press.
+const SHARE_HEAD = `<link rel="stylesheet" href="${ovServe.url('ov-share.css')}"><script src="${ovServe.url('ov-share.js')}" defer></script>`;
 
 /**
  * A code page's meta description, from the code's own facts and never its submitted description: the code, what it
@@ -417,10 +422,59 @@ function createPublicRoutes(ctx) {
         res.redirect(303, '/connect-extension');
     });
 
+    // The person's own list. Opening it makes its share row (the list has no row of its own, so this is the moment it
+    // starts existing), at the person's default; the Share sheet then changes it (design 2026-11-06, step 6).
     router.get('/watching', async (req, res) => {
         if (!requireUser(req, res)) return;
-        send(req, res, 200, { title: 'Watching', decision: pageDecision('/watching', { indexable: false }), body: pages.watching({ merchants: await watches.list(req.viewer.subject) }) });
+        const subject = req.viewer.subject;
+        const audience = await ensureShare(subject);
+        send(req, res, 200, {
+            title: 'Watching', decision: pageDecision('/watching', { indexable: false }), head: SHARE_HEAD,
+            body: pages.watching({ merchants: await watches.list(subject), mine: true, audience, shareId: subject, csrf: csrf(req) }),
+        });
     });
+
+    router.post('/watching/defaults', form, async (req, res) => {
+        if (!requireForm(req, res)) return;
+        const audience = ['private', 'people', 'link', 'public'].includes(req.body.audience) ? req.body.audience : 'private';
+        await ctx.sharing.setDefault(req.viewer.subject, audience, { applyAll: true })
+            .catch((err) => ctx.log.warn('[Coupons] the watching default was not saved:', err.message));
+        res.redirect(303, '/watching');
+    });
+
+    // One person's list, read by whoever holds the link or is on its Specific-people list. The id is its owner's
+    // subject; a stranger never learns whether it exists (404), and a Specific-people list answers the gate.
+    router.get('/watching/:id', async (req, res) => {
+        const id = String(req.params.id || '');
+        if (!SUBJECT_RE.test(id)) return notFound(req, res);
+        const me = req.viewer.kind === 'user' && req.viewer.subject === id;
+        const canView = me || await ctx.sharing.canView(req.viewer, id).catch(() => false);
+        if (!canView) {
+            const audience = await ctx.sharing.audienceOf(id).catch(() => null);
+            if (audience === 'people') {
+                const signedIn = req.viewer.kind === 'user';
+                return send(req, res, 404, {
+                    title: 'A watch list shared with specific people', decision: pageDecision('/watching', { indexable: false }), head: SHARE_HEAD,
+                    body: pages.watchingGate({ id, signedInAs: signedIn ? (req.viewer.user && req.viewer.user.username) || '' : '', signInUrl: `/auth/login?next=${encodeURIComponent(req.originalUrl)}` }),
+                });
+            }
+            return notFound(req, res);
+        }
+        const audience = await ctx.sharing.audienceOf(id).catch(() => null);
+        send(req, res, 200, {
+            title: 'Watched shops', decision: pageDecision('/watching', { indexable: false }), head: SHARE_HEAD,
+            body: pages.watching({ merchants: await watches.list(id), mine: me, audience: audience || 'private', shareId: id, csrf: me ? csrf(req) : null }),
+        });
+    });
+
+    /** The person's share row, made at their default the first time they open their list. */
+    async function ensureShare(subject) {
+        const row = await ctx.sharing.shareOf(subject).catch(() => null);
+        if (row) return row.audience;
+        const audience = await ctx.sharing.defaultOf(subject).catch(() => 'private');
+        await ctx.sharing.register(subject, subject, audience).catch(() => {});
+        return audience;
+    }
 
     // ── Staff ───────────────────────────────────────────────
     function requireStaff(req, res) {

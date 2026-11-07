@@ -456,10 +456,30 @@ function companion() {
 <p class="meta">Source code and the full privacy table: <a href="${COMPANION_SOURCE}">OpenVibers/OpenVibe.Extensions</a>. How codes are labelled: <a href="/about">the method</a>.</p>`;
 }
 
-function watching({ merchants }) {
-    return h`<h1>Shops you watch</h1>
-<p class="meta">Private to you. When a new code for one of these shops is listed, you get a notification in your OpenVibe inbox (unless you muted service notifications there).</p>
-${merchants.length ? h`<ul class="merchant-list">${merchants.map((m) => h`<li><a href="/m/${m.slug}">${m.name}</a></li>`)}</ul>` : h`<p class="empty">You are not watching any shop. Use “Watch this shop” on a shop's page.</p>`}`;
+const AUDIENCE_WORD = { public: 'Everyone', link: 'Anyone with the link', people: 'Specific people', private: 'Only me' };
+
+function watching({ merchants, mine = true, audience = 'private', shareId = null, csrf = null }) {
+    const who = AUDIENCE_WORD[audience] || 'Only me';
+    const defaultOptions = ['private', 'people', 'link']
+        .map((a) => h`<option value="${a}"${a === audience ? raw(' selected') : ''}>${AUDIENCE_WORD[a]}</option>`);
+    return h`<h1>${mine ? 'Shops you watch' : 'Watched shops'}</h1>
+<p class="meta"><span class="badge">${who}</span>${mine ? '' : ' · you are reading a shared list'} · When a new code for one of these shops is listed, the list's owner gets a notification in their OpenVibe inbox (unless they muted service notifications there).</p>
+${mine && shareId ? h`<section class="card" aria-labelledby="cp-watch-aud"><h2 id="cp-watch-aud">Who can open your list</h2>
+<form method="post" action="/watching/defaults" class="inline-form">${csrf ? hidden(csrf) : ''}
+<label>New list audience <select name="audience">${defaultOptions}</select></label><button type="submit">Save</button></form>
+<p class="meta">The Share button changes this list. It is never listed anywhere.</p>
+<p><button type="button" class="btn" data-ov-share-sheet data-kind="watchlist" data-id="${shareId}" data-title="Watched shops">Share</button></p></section>` : ''}
+${merchants.length ? h`<ul class="merchant-list">${merchants.map((m) => h`<li><a href="/m/${m.slug}">${m.name}</a></li>`)}</ul>` : h`<p class="empty">${mine ? 'You are not watching any shop. Use “Watch this shop” on a shop\'s page.' : 'This list has no watched shops right now.'}</p>`}`;
+}
+
+/**
+ * The page a person not on a Specific-people list's list sees: the audience, never a shop's name.
+ * openvibe-shared draws the card from this markup (no inline script).
+ */
+function watchingGate({ id, signedInAs = '', signInUrl = '/auth/login' }) {
+    return h`<h1>A watch list shared with specific people</h1>
+<p>Sign in with the OpenVibe account it was shared with, or ask its owner for access.</p>
+<div data-ov-share-gate data-kind="watchlist" data-id="${id}" data-signed-in-as="${signedInAs}" data-sign-in-url="${signInUrl}">This is shared with specific people. Sign in with the OpenVibe account it was shared with, or ask its owner for access.</div>`;
 }
 
 function staff({ pendingMerchants, pendingCoupons, holds, csrf, flashMsg, errs = [] }) {
@@ -495,5 +515,5 @@ function message({ heading, text, action }) {
 }
 
 module.exports = {
-    shopTab, isProductDeal, headline, moneyOf, symbolOf, currencyOf, home, shopsSection, merchantTrend, couponPage, couponCard, about, submitForm, submitted, connect, companion, COMPANION_RELEASE, watching, staff, message, STATUS_LABEL, statusLabel, SITE_SUMMARY,
+    shopTab, isProductDeal, headline, moneyOf, symbolOf, currencyOf, home, shopsSection, merchantTrend, couponPage, couponCard, about, submitForm, submitted, connect, companion, COMPANION_RELEASE, watching, watchingGate, staff, message, STATUS_LABEL, statusLabel, SITE_SUMMARY,
     regionName, BASIS_LABEL };
