@@ -463,7 +463,9 @@ function watching({ merchants, mine = true, audience = 'private', shareId = null
     const defaultOptions = ['private', 'people', 'link']
         .map((a) => h`<option value="${a}"${a === audience ? raw(' selected') : ''}>${AUDIENCE_WORD[a]}</option>`);
     return h`<h1>${mine ? 'Shops you watch' : 'Watched shops'}</h1>
-<p class="meta"><span class="badge">${who}</span>${mine ? '' : ' · you are reading a shared list'} · When a new code for one of these shops is listed, the list's owner gets a notification in their OpenVibe inbox (unless they muted service notifications there).</p>
+<p class="meta"><span class="badge">${who}</span>${mine
+        ? ' · Private to you. When a new code for one of these shops is listed, you get a notification in your OpenVibe inbox (unless you muted service notifications there).'
+        : ' · you are reading a shared list · When a new code for one of these shops is listed, the list\'s owner gets a notification in their OpenVibe inbox (unless they muted service notifications there).'}</p>
 ${mine && shareId ? h`<section class="card" aria-labelledby="cp-watch-aud"><h2 id="cp-watch-aud">Who can open your list</h2>
 <form method="post" action="/watching/defaults" class="inline-form">${csrf ? hidden(csrf) : ''}
 <label>New list audience <select name="audience">${defaultOptions}</select></label><button type="submit">Save</button></form>
