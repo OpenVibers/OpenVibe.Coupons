@@ -12,7 +12,7 @@ const { spawn } = require('child_process');
 const { measure, check, format } = require('openvibe-shared/perf-budget');
 
 // 2026-11-08: openvibe-shared v4.150.0; CI measured JS 370.1 KB raw / 88.6 KB brotli.
-
+// 2026-11-08: openvibe-shared v4.149.0; CI measured JS 369.1 KB raw / 88.5 KB brotli.
 const BUDGETS = {
     htmlRawKB: 47,   // 46.2 with 2026-11-01: openvibe-shared 4.85.0 (2026-11-01); 45.1 with the short home (2026-10-30: the code lists are one pick block and the rare parts are folds); 42.3 with openvibe-shared 4.53.0: the footer's columns fold on phones (2026-10-30); 37.3 with the Part of OpenVibe section (Shared 4.13, 2026-10-26); 33.7 with the curated front page (numbers, code tickets, the Companion, six questions and their JSON-LD; 2026-10-22); 24.1 with the showcase (17.4 before it; fresh database)
     htmlBrotliKB: 11,   // 9.1 Shared 4.15.1 footer; 7.9 with the curated front page; 6.2 (4.5 before the showcase)
