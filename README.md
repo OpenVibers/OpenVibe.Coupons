@@ -2,6 +2,9 @@
 
 > Coupon codes with merchant matching, restrictions, expiry and real-people validity reports.
 
+**Live site:** https://openvibe.coupons · **API docs:** https://openvibe.services · **For AI:** https://openvibe.coupons/llms.txt
+**Run it:** `npm ci && npm run dev` (Node 22 or newer) · **Tests:** `npm test`
+
 **Status:** alpha (roadmap Wave 18, Coupons part). The service runs and its tests pass. It is
 **public at `openvibe.coupons` since 2026-10-09**, after an independent pre-launch security review
 whose fixes shipped first, and it holds **no codes** (nothing is seeded, no coupons source is
