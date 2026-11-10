@@ -121,7 +121,6 @@ button.primary { background: var(--accent-strong, #2563eb); border-color: var(--
   .cp-hero .cp-stats > li { flex: 0 0 auto; width: 132px; scroll-snap-align: start; }
   .cp-fold > summary span { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { .cp-stats a { transition: none; } }
 .home .page .sc-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
 
 /* The shop page on the OpenVibe Kit (Shared 4.20): a code card answers at a glance — the discount, the code with Copy
