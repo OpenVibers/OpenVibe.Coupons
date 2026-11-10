@@ -10,6 +10,7 @@
  */
 const ssr = require('openvibe-publishing/ssr');
 const showcase = require('openvibe-shared/showcase');
+const kit = require('openvibe-shared/kit');
 const { statusLabel, shopsSection } = require('./pages');
 const { remindLink } = require('./remind');
 // The short home (the owner's rule, 2026-10-30): the three code lists become one pick block, a row of chips picks
@@ -101,7 +102,7 @@ function homePage(d) {
     ])}</div></section>`;
 
     return h`${hero}
-${s.active === 0 ? h`<p class="empty cp-empty">No codes are listed yet. <a href="/submit">Submit the first one</a>.</p>` : ''}
+${s.active === 0 ? raw(kit.empty({ icon: 'tag', title: 'No codes yet', text: 'No coupon code has been listed yet.', action: { href: '/submit', label: 'Submit the first code', icon: 'plus' } })) : ''}
 ${raw(pickBlock({
     key: 'codes',
     label: 'Codes',

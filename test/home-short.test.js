@@ -11,6 +11,14 @@ const { boot, check, done } = require('./helpers/boot');
     const t = await boot();
     const alice = t.network.addUser('alice');
     try {
+        await check('the empty home draws the kit empty state with one button', async () => {
+            const r = await t.get('/');
+            assert.strictEqual(r.status, 200);
+            assert.match(r.text, /class="ovk-empty"/, 'the kit empty state is used, not a bare sentence');
+            assert.match(r.text, /No coupon code has been listed yet/);
+            assert.match(r.text, /class="ovk-btn[^"]*" href="\/submit"/, 'the empty state offers one button forward');
+        });
+
         await check('setup: a shop and a code, so the lists have something to show', async () => {
             const shop = await t.merchant({ name: 'Green Grocer', host: 'greengrocer.co.uk' });
             const r = await t.get('/submit', { as: alice, form: { csrf: t.csrf(alice), merchant: shop.slug, code: 'VEG5', title: 'Five pounds off veg boxes', expires: '', min_spend_amount: '30', min_spend_currency: 'gbp', regions: 'GB' } });
