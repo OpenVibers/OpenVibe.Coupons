@@ -42,7 +42,7 @@ const count = (html, re) => (html.match(re) || []).length;
             assert.ok(/<meta name="ov-boost" content="coupons@[^"]+">/.test(head), 'the boost marker');
             assert.ok(/<script src="\/shared\/boost\.js\?v=[0-9a-f]{12}" data-main="#main" defer><\/script>/.test(head), 'the boost script');
             assert.ok(body.includes('<div id="navbar-mount"></div>'), 'the navbar mount');
-            assert.ok(body.includes('<nav aria-label="Site"'), 'the noscript navigation');
+            assert.ok(body.includes('<nav class="openvibe-navbar" aria-label="Site"'), 'the server-rendered navigation');
             assert.ok(body.includes('<main id="main" class="page">'), 'the swappable main');
             assert.ok(body.includes('id="ov-footer"'), 'the server-rendered footer');
             assert.ok(body.includes('OpenVibeFooter.init(window.__OV_PAGE.footer)'), 'the footer is initialised');

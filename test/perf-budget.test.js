@@ -19,7 +19,7 @@ const BUDGETS = {
     htmlBrotliKB: 11,   // 9.1 Shared 4.15.1 footer; 7.9 with the curated front page; 6.2 (4.5 before the showcase)
     jsFiles: 6,   // 6 with the OpenVibe Kit's kit-web.js (Shared 4.20.1, 2026-10-28); 5 (openvibe-shared 2.9 shell: web-runtime.js)
     jsRawKB: 398, // 398: measured 390 with openvibe-shared 4.163.0, plus room for 4.162.0–4.163.0, 2026-11-09
-    jsBrotliKB: 95.1, // 95.1: measured 93.1 with openvibe-shared 4.163.0, plus room for 4.162.0–4.163.0, 2026-11-09
+    jsBrotliKB: 95.4, // 95.4: measured 95.3 KB brotli with openvibe-shared 4.186.0 (2026-11-10: the mark's Working and Thinking states, the Dock and the menu as one sheet, bare controls styled by the loader); 95.1: measured 93.1 with openvibe-shared 4.163.0, plus room for 4.162.0–4.163.0, 2026-11-09
     cssFiles: 3,   // 3 with the OpenVibe Kit's kit.css on every page (Shared 4.20); 2 (coupons.css + showcase.css, home only)
     cssRawKB: 100.3, // 100.3: measured 95.3 with openvibe-shared 4.163.0, plus room for 4.162.0–4.163.0, 2026-11-09
     cssBrotliKB: 20.5, // 20.5: measured 19.3 with openvibe-shared 4.163.0, plus room for 4.162.0–4.163.0, 2026-11-09
