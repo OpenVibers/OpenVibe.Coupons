@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use OpenVibe.Coupons in research or a product, cite it as below."
+title: openvibe-coupons
+type: software
+authors:
+  - name: OpenVibe
+    alias: OpenVibers
+    website: https://openvibe.network
+repository-code: https://github.com/OpenVibers/OpenVibe.Coupons
+url: https://openvibe.coupons
+license: AGPL-3.0-only
+abstract: "A coupon community with merchant matching, restrictions, expiry and real-people validity reports, at openvibe.coupons."
+keywords:
+  - openvibe
+  - browser-extension
+  - coupons
+  - deals
+  - ecommerce
