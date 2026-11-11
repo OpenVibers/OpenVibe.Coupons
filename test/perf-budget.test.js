@@ -15,7 +15,7 @@ const { measure, check, format } = require('openvibe-shared/perf-budget');
 // 2026-11-08: openvibe-shared v4.150.0; CI measured JS 370.1 KB raw / 88.6 KB brotli.
 // 2026-11-08: openvibe-shared v4.149.0; CI measured JS 369.1 KB raw / 88.5 KB brotli.
 const BUDGETS = {
-    htmlRawKB: 52, // 2026-11-11: openvibe-shared 4.190.0 (the site name's dropdown, the footer's online strip, the balances pill); 49.9: measured 47.9 with openvibe-shared 4.163.0, plus room for 4.162.0–4.163.0, 2026-11-09
+    htmlRawKB: 53, // 53 openvibe-shared v4.202.0 (2026-11-11: measured 52.8, raised by pin-bump from 52); 2026-11-11: openvibe-shared 4.190.0 (the site name's dropdown, the footer's online strip, the balances pill); 49.9: measured 47.9 with openvibe-shared 4.163.0, plus room for 4.162.0–4.163.0, 2026-11-09
     htmlBrotliKB: 11.5,   // 2026-11-11: openvibe-shared 4.190.0 (the site name's dropdown, the footer's online strip, the balances pill); 9.1 Shared 4.15.1 footer; 7.9 with the curated front page; 6.2 (4.5 before the showcase)
     jsFiles: 6,   // 6 with the OpenVibe Kit's kit-web.js (Shared 4.20.1, 2026-10-28); 5 (openvibe-shared 2.9 shell: web-runtime.js)
     jsRawKB: 416, // 416: measured 415.8 with openvibe-shared 4.197.0 (2026-11-10: the menu's row of places, the You tab's row, the Sign in mark, the tooltip); 2026-11-11: openvibe-shared 4.190.0 (the site name's dropdown, the footer's online strip, the balances pill); 398: measured 390 with openvibe-shared 4.163.0, plus room for 4.162.0–4.163.0, 2026-11-09
