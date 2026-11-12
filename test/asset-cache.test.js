@@ -11,10 +11,10 @@ const { boot, check, done } = require('./helpers/boot');
 
 const ASSET = 'css/coupons.css';
 const IMMUTABLE = 'public, max-age=31536000, immutable';
-const REVALIDATE = 'public, max-age=300, stale-while-revalidate=86400';
+const REVALIDATE = 'public, max-age=300, stale-while-revalidate=300';
 
 (async () => {
-    await check('the module: hashed → immutable, otherwise a 5 min window with a day of stale-while-revalidate', async () => {
+    await check('the module: hashed → immutable, otherwise a 5 min window with five minutes of stale-while-revalidate', async () => {
         assert.strictEqual(cache.IMMUTABLE, IMMUTABLE);
         assert.strictEqual(cache.assetHeaders(ASSET, { hashed: true }), IMMUTABLE);
         assert.strictEqual(cache.assetHeaders(ASSET, { hashed: false }), REVALIDATE);
