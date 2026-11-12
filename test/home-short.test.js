@@ -32,14 +32,14 @@ const { boot, check, done } = require('./helpers/boot');
             const start = page.indexOf('<div class="pick" id="pick-codes">');
             assert.ok(start > 0, 'the pick block is on the home');
             const block = page.slice(start, page.indexOf('<section class="cp-sec" id="shops"'));
-            assert.match(block, /<nav class="pick-row" aria-label="Codes">/);
-            const chips = [...block.matchAll(/<a class="pick-chip" href="#(?:pp-codes-)?([a-z-]+)">()()([^<]+)<\/a>/g)];
-            assert.ok(chips.length >= 1, `a chip per list (${chips.length})`);
-            assert.ok(!/type="radio"/.test(block), 'no chip is a radio: nothing is picked, every pane shows');
-            // The lists that have something to show stay in the page, each in its own pane.
-            for (const id of chips.map((m) => m[1])) {
-                assert.ok(block.includes(`id="${id}"`), `the pane of ${id} is in the page`);
-            }
+            // Shared pick() (11-12): two lists or more are tabs on a phone; one list with codes is simply shown (never
+            // an empty tab). Every list that has something to show is a pane in the page.
+            const panes = [...block.matchAll(/<div class="pick-pane" id="([a-z-]+)">/g)].map((m) => m[1]);
+            assert.ok(panes.length >= 1, `a pane per list with codes (${panes.length})`);
+            if (panes.length > 1) {
+                assert.match(block, /<div class="ov-parts ov-parts--front" data-parts="\d+">/, 'its lists are tabs on a phone');
+                assert.ok(/<input type="radio" class="ov-parts-r"[^>]* checked>/.test(block), 'the first list is open on a phone');
+            } else assert.match(block, /<div class="ov-parts is-stacked">/, 'one list: shown, no tabs');
             assert.ok(block.includes('VEG5'), 'the code is on the page');
         });
 
