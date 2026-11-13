@@ -10,6 +10,7 @@
  */
 const ssr = require('openvibe-publishing/ssr');
 const showcase = require('openvibe-shared/showcase');
+const glyphs = require('openvibe-shared/glyphs');
 const kit = require('openvibe-shared/kit');
 const { statusLabel, shopsSection } = require('./pages');
 const { remindLink } = require('./remind');
@@ -49,7 +50,7 @@ ${v.attribution ? h`<p class="meta cp-via">via <a href="${v.attribution.url}" re
 function section({ id, title, lede, more, body, domId = id }) {
     if (!body) return '';
     return h`<section class="cp-sec" aria-labelledby="${domId}">
-<div class="cp-head"><h2 id="${domId}">${title}</h2>${more ? h`<a class="cp-more" href="${more.href}">${more.label}<span aria-hidden="true"> →</span></a>` : ''}</div>
+<div class="cp-head"><h2 id="${domId}">${title}</h2>${more ? h`<a class="cp-more" href="${more.href}">${more.label}<span aria-hidden="true"> ${raw(glyphs.svg('arrow-right', { size: 14 }))}</span></a>` : ''}</div>
 ${lede ? h`<p class="cp-lede">${lede}</p>` : ''}
 ${raw(String(body))}
 </section>`;
