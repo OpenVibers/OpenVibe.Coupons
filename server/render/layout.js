@@ -31,15 +31,15 @@ const NETWORK_URL = 'https://openvibe.network';
 const SITE_NAME = 'OpenVibe.Coupons';
 const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public');
 const NAV = [
-    { label: 'Shops', href: '/', icon: 'fa-ticket' },
-    { label: 'Submit a code', href: '/submit', icon: 'fa-plus' },
+    { label: 'Shops', href: '/', icon: 'ticket' },
+    { label: 'Submit a code', href: '/submit', icon: 'plus' },
     { label: 'Browser extension', href: '/companion' },
 ];
 // The phone app bar (Shared 4.20): the shops, submitting a code, what you watch, how codes are labelled.
 const APP_BAR = (signedIn) => [
-    { label: 'Shops', href: '/', icon: 'fa-ticket' },
-    { label: 'Submit', href: '/submit', icon: 'fa-plus' },
-    signedIn ? { label: 'Watching', href: '/watching', icon: 'fa-bell' } : { label: 'How it works', href: '/about', icon: 'fa-circle-info' },
+    { label: 'Shops', href: '/', icon: 'ticket' },
+    { label: 'Submit', href: '/submit', icon: 'plus' },
+    signedIn ? { label: 'Watching', href: '/watching', icon: 'bell' } : { label: 'How it works', href: '/about', icon: 'info' },
 ];
 
 const hashes = new Map();
@@ -86,7 +86,7 @@ function renderPage(o) {
     };
     // This site's own account links live in the shared navbar's account menu (the page's account
     // bar below is only for visitors without JavaScript).
-    if (signedIn) nav.menu = { before: [{ label: 'Watching', href: '/watching', icon: 'fa-bell' }, { label: 'Connected browsers', href: '/connect-extension', icon: 'fa-puzzle-piece' }, ...(viewer.staff ? [{ label: 'Staff', href: '/staff', icon: 'fa-shield' }] : [])] };
+    if (signedIn) nav.menu = { before: [{ label: 'Watching', href: '/watching', icon: 'bell' }, { label: 'Connected browsers', href: '/connect-extension', icon: 'puzzle' }, ...(viewer.staff ? [{ label: 'Staff', href: '/staff', icon: 'shield' }] : [])] };
     const footer = { service: 'coupons', variant: 'auto', path: o.path, mount: '#ov-footer', brandName: SITE_NAME, updates: '/updates' };   // full on the front page only (Shared 4.19)
     const account = signedIn
         ? `<a href="/watching">Watching</a> · <a href="/connect-extension">Connected browsers</a>${viewer.staff ? ' · <a href="/staff">Staff</a>' : ''} · <a href="/auth/logout?next=${loginNext}">Sign out</a>`
