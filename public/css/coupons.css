@@ -128,7 +128,7 @@ button.primary { background: var(--accent-strong, #2563eb); border-color: var(--
 .cpn { border: 1px solid var(--border, #1f2d47); border-radius: 14px; padding: 12px 14px; margin: 10px 0; background: var(--bg-card, #131c2e); }
 .cpn-top { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
 .cpn-off { font-size: 1.45rem; font-weight: 800; letter-spacing: -.01em; line-height: 1.15; }
-.cpn-scope { font-size: .72rem; font-weight: 700; letter-spacing: .02em; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-light, #2c3d5c); color: var(--text-secondary, #96a7c2); }
+.cpn-scope { font-size: .75rem; font-weight: 700; letter-spacing: .02em; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-light, #2c3d5c); color: var(--text-secondary, #96a7c2); }
 .cpn-title { margin: 4px 0 8px; font-size: 1rem; font-weight: 600; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .cpn-title a { color: inherit; text-decoration: none; }
 .cpn-title a:hover { text-decoration: underline; }
@@ -186,7 +186,7 @@ main:has(.cpn-shop-title) .ovk-sub { white-space: normal; }
 .cpn-fact-list { margin: 0; padding-left: 1.1rem; font-size: .9rem; color: var(--text-secondary, #96a7c2); }
 .cpn-sticky { position: fixed; left: 0; right: 0; bottom: var(--ovk-bottom, 0px); z-index: 40; display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-top: 1px solid var(--border, #1f2d47); background: var(--bg-card, #131c2e); box-shadow: 0 -6px 18px color-mix(in srgb, var(--border, #1f2d47) 70%, transparent); }
 .cpn-sticky[hidden] { display: none; }
-.cpn-sticky-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted, #7386a3); }
+.cpn-sticky-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted, #7386a3); }
 .cpn-sticky-code { font: 700 1.05rem/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; margin-right: auto; overflow-wrap: anywhere; }
 @media (max-width: 600px) {
   .cpn-codebox { padding: 10px 12px; }
